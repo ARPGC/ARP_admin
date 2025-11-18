@@ -53,18 +53,35 @@ async function checkAdminSession() {
 
 // Login Handler
 window.handleAdminLogin = async () => {
-    const email = document.getElementById('admin-email').value;
+    const email = document.getElementById('admin-email').value.trim();
     const password = document.getElementById('admin-pass').value;
     const msg = document.getElementById('login-msg');
+    const button = document.querySelector('button[onclick="handleAdminLogin()"]');
 
-    msg.textContent = "Verifying credentials...";
+    // UI Loading State
+    msg.textContent = "Authenticating...";
+    msg.className = "text-gray-500 text-xs mt-4 h-4";
+    button.disabled = true;
+    button.classList.add('opacity-50', 'cursor-not-allowed');
     
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    // Standard Supabase Email Login
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+        email: email, 
+        password: password 
+    });
     
+    // Reset Button
+    button.disabled = false;
+    button.classList.remove('opacity-50', 'cursor-not-allowed');
+
     if (error) {
-        msg.textContent = error.message;
+        console.error("Login Error:", error);
+        msg.textContent = error.message; // e.g., "Invalid login credentials"
+        msg.className = "text-red-500 text-xs mt-4 h-4 font-bold";
     } else {
-        location.reload();
+        msg.textContent = "Success! Loading Dashboard...";
+        msg.className = "text-green-600 text-xs mt-4 h-4 font-bold";
+        setTimeout(() => location.reload(), 500);
     }
 };
 
