@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoBirla Admin Console</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <link rel="stylesheet" href="admin.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { fontFamily: { inter: ['Inter', 'sans-serif'] } } }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-inter h-screen overflow-hidden flex">
+
+    <aside class="w-64 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 flex flex-col z-20">
+        <div class="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
+            <span class="text-xl font-extrabold text-green-600 tracking-tight">EcoBirla Admin</span>
+        </div>
+        
+        <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
+            <button onclick="navTo('dashboard')" class="nav-item active w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i> Dashboard
+            </button>
+            <button onclick="navTo('analytics')" class="nav-item w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+                <i data-lucide="bar-chart-2" class="w-5 h-5 mr-3"></i> Analytics
+            </button>
+            <div class="pt-4 pb-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Management</div>
+            <button onclick="navTo('users')" class="nav-item w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+                <i data-lucide="users" class="w-5 h-5 mr-3"></i> Students
+            </button>
+            <button onclick="navTo('store')" class="nav-item w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+                <i data-lucide="shopping-bag" class="w-5 h-5 mr-3"></i> Store & Products
+            </button>
+            <button onclick="navTo('events')" class="nav-item w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+                <i data-lucide="calendar" class="w-5 h-5 mr-3"></i> Events & RSVPs
+            </button>
+            <button onclick="navTo('logs')" class="nav-item w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg">
+                <i data-lucide="scroll" class="w-5 h-5 mr-3"></i> Activity Logs
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-3">
+                <img src="https://ui-avatars.com/api/?name=Admin+User&background=10B981&color=fff" class="w-9 h-9 rounded-full">
+                <div class="text-sm">
+                    <p class="font-medium">Admin User</p>
+                    <p class="text-xs text-gray-500">Super Admin</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        <header class="h-16 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 z-10">
+            <h1 id="page-title" class="text-xl font-bold">Dashboard</h1>
+            <div class="flex items-center gap-4">
+                <button class="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                </button>
+                <button onclick="toggleTheme()" class="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
+                    <i data-lucide="moon" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <div id="main-content-area" class="flex-1 overflow-y-auto p-8">
+            
+            <div id="view-dashboard" class="view-section animate-fade-in">
+                <div class="grid grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium opacity-80">Total Points Distributed</p>
+                                <h3 class="text-3xl font-bold mt-1" id="stat-total-dist">0</h3>
+                            </div>
+                            <i data-lucide="trending-up" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200">
+                        <div>
+                            <p class="text-sm font-medium opacity-80">Points Redeemed</p>
+                            <h3 class="text-3xl font-bold mt-1" id="stat-total-red">0</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200">
+                        <div>
+                            <p class="text-sm font-medium opacity-80">Impact (Plastic Kg)</p>
+                            <h3 class="text-3xl font-bold mt-1" id="stat-impact">0</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card text-orange-600 bg-orange-50 dark:bg-orange-900/20 border-orange-200">
+                        <div>
+                            <p class="text-sm font-medium opacity-80">Pending Approvals</p>
+                            <h3 class="text-3xl font-bold mt-1" id="stat-pending">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-6 mb-8">
+                    <div class="col-span-2 glass-panel p-6">
+                        <h3 class="font-semibold mb-4">Page View Analytics (Traffic)</h3>
+                        <div class="h-64">
+                            <canvas id="trafficChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6">
+                        <h3 class="font-semibold mb-4">Activity Distribution</h3>
+                        <div class="h-48 flex items-center justify-center">
+                            <canvas id="distChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-6">
+                    <h3 class="font-semibold mb-4">Live Activity Log</h3>
+                    <div id="dashboard-logs-preview" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <div id="view-users" class="view-section hidden">
+                <div class="flex justify-between mb-4">
+                    <input type="text" id="user-search" placeholder="Search student ID, name..." class="input-field w-80">
+                    <button class="btn-primary" onclick="openUserModal()">+ Add Student</button>
+                </div>
+                <div class="glass-panel overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="p-4">Student</th>
+                                <th class="p-4">ID</th>
+                                <th class="p-4">Course</th>
+                                <th class="p-4">Points</th>
+                                <th class="p-4">Level</th>
+                                <th class="p-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body" class="text-sm divide-y divide-gray-100 dark:divide-gray-800"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="view-store" class="view-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex gap-2">
+                        <button class="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm text-sm font-medium">Products</button>
+                        <button class="px-4 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium">Coupons</button>
+                    </div>
+                    <button class="btn-primary" onclick="openProductModal()">+ Add Product</button>
+                </div>
+                <div id="products-grid" class="grid grid-cols-4 gap-6"></div>
+            </div>
+
+            <div id="view-events" class="view-section hidden">
+                 <div class="flex justify-between mb-4">
+                    <h3 class="font-bold text-lg">Upcoming & Past Events</h3>
+                    <button class="btn-primary" onclick="openEventModal()">+ Create Event</button>
+                </div>
+                <div id="events-list-container" class="space-y-4"></div>
+            </div>
+
+             <div id="view-logs" class="view-section hidden">
+                <div class="glass-panel p-6">
+                    <h3 class="font-bold mb-4">Comprehensive System Logs</h3>
+                    <div id="full-logs-list" class="space-y-0 divide-y divide-gray-100 dark:divide-gray-800"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="user-modal" class="modal-overlay hidden">
+        <div class="modal-content w-full max-w-4xl">
+            <div class="flex justify-between items-center mb-6 border-b pb-4 dark:border-gray-700">
+                <h3 class="text-xl font-bold">Student Details</h3>
+                <button onclick="closeModal('user-modal')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="grid grid-cols-3 gap-6 h-[60vh] overflow-y-auto">
+                <div class="col-span-1 text-center">
+                    <img id="modal-user-img" src="" class="w-32 h-32 rounded-full mx-auto mb-4 bg-gray-200 object-cover">
+                    <h2 id="modal-user-name" class="text-xl font-bold"></h2>
+                    <p id="modal-user-id" class="text-gray-500"></p>
+                    <div class="mt-4 p-4 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                        <p class="text-xs uppercase text-green-600 font-bold">Lifetime Points</p>
+                        <p id="modal-user-points" class="text-3xl font-bold text-green-700 dark:text-green-400"></p>
+                    </div>
+                    <div class="mt-4 text-left space-y-2 text-sm">
+                        <div class="flex justify-between border-b py-2 dark:border-gray-700"><span>Email:</span> <span id="modal-user-email" class="font-medium"></span></div>
+                        <div class="flex justify-between border-b py-2 dark:border-gray-700"><span>Mobile:</span> <span id="modal-user-mobile" class="font-medium"></span></div>
+                        <div class="flex justify-between border-b py-2 dark:border-gray-700"><span>Password:</span> <span id="modal-user-pass" class="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded"></span></div>
+                    </div>
+                </div>
+                <div class="col-span-2">
+                    <h4 class="font-bold mb-3">Transaction History</h4>
+                    <div id="modal-user-history" class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 h-full overflow-y-auto space-y-2 text-sm"></div>
+                </div>
+            </div>
+            <div class="mt-6 pt-4 border-t dark:border-gray-700 flex justify-end gap-3">
+                <button class="px-4 py-2 text-red-500 hover:bg-red-50 rounded-lg font-medium">Delete User</button>
+                <button class="btn-primary" onclick="saveUserChanges()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="product-modal" class="modal-overlay hidden">
+        <div class="modal-content w-full max-w-2xl">
+            <h3 class="text-xl font-bold mb-4">Add/Edit Product</h3>
+            <form id="product-form" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" placeholder="Product Name" class="input-field col-span-2">
+                    <input type="number" placeholder="Cost (EcoPoints)" class="input-field">
+                    <input type="text" placeholder="Original Price (₹)" class="input-field">
+                </div>
+                <textarea placeholder="Description..." class="input-field h-24"></textarea>
+                
+                <div class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-6 text-center hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer relative">
+                    <input type="file" id="product-file-upload" class="absolute inset-0 opacity-0 cursor-pointer" onchange="handleFileUpload(this)">
+                    <i data-lucide="upload-cloud" class="mx-auto h-10 w-10 text-gray-400"></i>
+                    <p class="mt-2 text-sm text-gray-500" id="upload-text">Click to upload product image (Cloudinary)</p>
+                </div>
+                <div id="upload-preview" class="hidden h-20 w-20 rounded-lg bg-gray-100 bg-cover bg-center border"></div>
+
+                <button type="button" class="btn-primary w-full">Save Product</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="rsvp-modal" class="modal-overlay hidden">
+        <div class="modal-content w-full max-w-3xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Event RSVPs: <span id="rsvp-event-name"></span></h3>
+                <div class="flex gap-2">
+                    <button onclick="downloadRSVPPdf()" class="btn-secondary flex items-center text-xs"><i data-lucide="download" class="w-3 h-3 mr-1"></i> PDF</button>
+                    <button onclick="closeModal('rsvp-modal')"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+            <div id="rsvp-table-container">
+                <table class="w-full text-sm text-left" id="rsvp-table">
+                    <thead class="bg-gray-100 dark:bg-gray-800 font-bold">
+                        <tr><th>Student ID</th><th>Name</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="rsvp-list-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
