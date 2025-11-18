@@ -3,16 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoBirla Admin Portal</title>
+    <title>EcoBirla Admin Console</title>
     
-    <!-- Libraries -->
+    <!-- 1. CSS Framework -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- 2. Icons & Utilities -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <!-- 3. Supabase Client (MUST BE HERE) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <link rel="stylesheet" href="admin.css">
     <script>
         tailwind.config = {
@@ -28,24 +32,27 @@
 </head>
 <body class="bg-gray-50 text-gray-800 font-inter h-screen flex overflow-hidden">
 
-    <!-- Loading Screen -->
-    <div id="admin-loader" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-        <p class="mt-4 text-gray-500 font-semibold">Loading Admin Console...</p>
-    </div>
-
-    <!-- Login Overlay (If not authenticated) -->
-    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-40 hidden flex items-center justify-center">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-96">
-            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Admin Login</h2>
-            <input type="email" id="admin-email" placeholder="Admin Email" class="w-full p-3 mb-4 border rounded-lg">
-            <input type="password" id="admin-pass" placeholder="Password" class="w-full p-3 mb-6 border rounded-lg">
-            <button onclick="handleAdminLogin()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700">Login</button>
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-50 flex flex-col items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-96 text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="shield-check" class="w-8 h-8 text-green-600"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Admin Access</h2>
+            <p class="text-gray-500 text-sm mb-6">Please sign in to verify privileges.</p>
+            
+            <input type="email" id="admin-email" placeholder="admin@ecobirla.edu" class="w-full p-3 mb-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+            <input type="password" id="admin-pass" placeholder="Password" class="w-full p-3 mb-6 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+            
+            <button onclick="handleAdminLogin()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition transform active:scale-95">
+                Secure Login
+            </button>
+            <p id="login-msg" class="text-red-500 text-xs mt-4 h-4"></p>
         </div>
     </div>
 
     <!-- Sidebar -->
-    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm">
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm transition-all duration-300">
         <div class="h-16 flex items-center px-6 border-b border-gray-100">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center text-white font-bold">E</div>
@@ -55,13 +62,13 @@
         
         <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
             <button onclick="navTo('dashboard')" class="nav-item active"><i data-lucide="layout-dashboard"></i> Dashboard</button>
-            <button onclick="navTo('analytics')" class="nav-item"><i data-lucide="bar-chart-2"></i> Visual Analytics</button>
-            <button onclick="navTo('approvals')" class="nav-item flex justify-between">
-                <span><i data-lucide="check-square"></i> Approvals</span>
-                <span id="sidebar-badge" class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+            <button onclick="navTo('analytics')" class="nav-item"><i data-lucide="bar-chart-2"></i> Analytics</button>
+            <button onclick="navTo('approvals')" class="nav-item flex justify-between group">
+                <span class="flex items-center"><i data-lucide="check-square"></i> Approvals</span>
+                <span id="sidebar-badge" class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full hidden group-hover:bg-red-600">0</span>
             </button>
             
-            <div class="sidebar-divider">Management</div>
+            <div class="sidebar-divider">Data Management</div>
             <button onclick="navTo('users')" class="nav-item"><i data-lucide="users"></i> Students</button>
             <button onclick="navTo('events')" class="nav-item"><i data-lucide="calendar"></i> Events & RSVP</button>
             <button onclick="navTo('store')" class="nav-item"><i data-lucide="shopping-bag"></i> Store & Products</button>
@@ -72,95 +79,117 @@
         </nav>
 
         <div class="p-4 border-t border-gray-100">
-            <button onclick="handleLogout()" class="flex items-center text-red-600 hover:bg-red-50 w-full p-2 rounded-lg transition">
-                <i data-lucide="log-out" class="w-5 h-5 mr-2"></i> Logout
+            <div class="flex items-center gap-3 mb-3 px-2">
+                <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold">AD</div>
+                <div class="overflow-hidden">
+                    <p class="text-sm font-bold text-gray-700 truncate" id="admin-name-display">Admin</p>
+                    <p class="text-xs text-gray-500">Super User</p>
+                </div>
+            </div>
+            <button onclick="handleLogout()" class="flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 w-full py-2 rounded-lg transition text-sm font-medium">
+                <i data-lucide="log-out" class="w-4 h-4 mr-2"></i> Sign Out
             </button>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col relative overflow-hidden">
-        <header class="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-8 z-10">
-            <h1 id="page-title" class="text-xl font-bold text-gray-800">Dashboard</h1>
-            <div class="flex items-center gap-4">
-                <div class="text-sm text-right hidden md:block">
-                    <p class="font-bold text-gray-700" id="admin-name-display">Admin</p>
-                    <p class="text-xs text-gray-500">Super User</p>
-                </div>
+    <main class="flex-1 flex flex-col relative overflow-hidden bg-gray-50">
+        <header class="h-16 bg-white/90 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-8 z-10 sticky top-0">
+            <h1 id="page-title" class="text-xl font-bold text-gray-800">Overview</h1>
+            <div class="flex items-center gap-3">
+                <button class="p-2 text-gray-400 hover:bg-gray-100 rounded-full relative">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                </button>
             </div>
         </header>
 
-        <div id="main-content-area" class="flex-1 overflow-y-auto p-8 bg-gray-50/50">
+        <div id="main-content-area" class="flex-1 overflow-y-auto p-8">
             
-            <!-- 1. DASHBOARD HOME -->
+            <!-- 1. DASHBOARD VIEW -->
             <div id="view-dashboard" class="view-section animate-fade-in">
+                <!-- Stats Row -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="stat-card border-l-4 border-green-500">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Total Distributed</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="dash-distributed">0</h3>
-                        <p class="text-xs text-green-600 mt-1 font-medium">EcoPoints</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Points Distributed</p>
+                        <h3 class="text-3xl font-extrabold text-gray-800 mt-1" id="dash-distributed">--</h3>
+                        <div class="flex items-center mt-2 text-xs font-medium text-green-600 bg-green-50 w-fit px-2 py-0.5 rounded">
+                            <i data-lucide="trending-up" class="w-3 h-3 mr-1"></i> Lifetime
+                        </div>
                     </div>
                     <div class="stat-card border-l-4 border-blue-500">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Total Redeemed</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="dash-redeemed">0</h3>
-                        <p class="text-xs text-blue-600 mt-1 font-medium">EcoPoints</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Points Redeemed</p>
+                        <h3 class="text-3xl font-extrabold text-gray-800 mt-1" id="dash-redeemed">--</h3>
+                         <div class="flex items-center mt-2 text-xs font-medium text-blue-600 bg-blue-50 w-fit px-2 py-0.5 rounded">
+                            <i data-lucide="shopping-cart" class="w-3 h-3 mr-1"></i> Total
+                        </div>
                     </div>
                     <div class="stat-card border-l-4 border-purple-500">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Current User Balance</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="dash-balance">0</h3>
-                        <p class="text-xs text-purple-600 mt-1 font-medium">EcoPoints</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">User Balance</p>
+                        <h3 class="text-3xl font-extrabold text-gray-800 mt-1" id="dash-balance">--</h3>
+                         <div class="flex items-center mt-2 text-xs font-medium text-purple-600 bg-purple-50 w-fit px-2 py-0.5 rounded">
+                            <i data-lucide="wallet" class="w-3 h-3 mr-1"></i> Outstanding
+                        </div>
                     </div>
                     <div class="stat-card border-l-4 border-orange-500">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Total Impact</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-1" id="dash-impact">0</h3>
-                        <p class="text-xs text-orange-600 mt-1 font-medium">Kg Plastic</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Plastic Impact</p>
+                        <h3 class="text-3xl font-extrabold text-gray-800 mt-1" id="dash-impact">--</h3>
+                        <p class="text-xs text-orange-600 mt-1 font-medium">Kilograms Recycled</p>
                     </div>
                 </div>
 
-                <!-- Leaderboard & Charts -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <h3 class="font-bold text-gray-700 mb-4">Traffic Overview (This Week)</h3>
+                    <!-- Traffic Chart -->
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-gray-700">Page View Distribution</h3>
+                            <select class="text-xs border rounded p-1 bg-gray-50 text-gray-600">
+                                <option>Last 7 Days</option>
+                                <option>Last 30 Days</option>
+                            </select>
+                        </div>
                         <div class="h-64"><canvas id="dashTrafficChart"></canvas></div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                        <h3 class="font-bold text-gray-700 mb-4">Top Students (Leaderboard)</h3>
-                        <div id="dash-leaderboard" class="flex-1 overflow-y-auto space-y-3 pr-2">
-                            <!-- JS Populated -->
+                    
+                    <!-- Leaderboard -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                        <h3 class="font-bold text-gray-700 mb-4">Top Performing Students</h3>
+                        <div id="dash-leaderboard" class="flex-1 overflow-y-auto space-y-3 pr-2 max-h-[300px]">
+                            <!-- Filled by JS -->
+                            <div class="animate-pulse flex space-x-4"><div class="rounded-full bg-gray-200 h-8 w-8"></div><div class="flex-1 space-y-2 py-1"><div class="h-2 bg-gray-200 rounded"></div></div></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. ANALYTICS -->
+            <!-- 2. ANALYTICS DETAILED -->
             <div id="view-analytics" class="view-section hidden">
-                <div class="bg-white p-6 rounded-xl shadow-sm mb-6">
-                    <h3 class="font-bold text-lg mb-6">Page View Analytics</h3>
-                    <div class="grid grid-cols-2 gap-8">
-                        <div class="h-80"><canvas id="analyticsViewChart"></canvas></div>
-                        <div class="h-80"><canvas id="analyticsDeviceChart"></canvas></div>
-                    </div>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm">
-                     <h3 class="font-bold text-lg mb-4">Action Distribution (Logs)</h3>
-                     <div class="h-64"><canvas id="analyticsActionChart"></canvas></div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+                    <h3 class="font-bold text-lg mb-2">Log Analytics</h3>
+                    <p class="text-sm text-gray-500 mb-6">Distribution of user actions (Logins, Scan, Uploads)</p>
+                    <div class="h-80"><canvas id="analyticsActionChart"></canvas></div>
                 </div>
             </div>
 
-            <!-- 3. APPROVALS (Tasks & Orders) -->
+            <!-- 3. APPROVALS -->
             <div id="view-approvals" class="view-section hidden">
-                <div class="grid grid-cols-2 gap-6">
-                    <div>
-                        <h3 class="font-bold text-lg mb-4">Challenge Submissions (Photos)</h3>
-                        <div id="approvals-challenges-list" class="space-y-4">
-                            <!-- Filled by JS -->
-                        </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Challenge Approvals -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="font-bold text-lg mb-4 text-gray-800 flex items-center">
+                            <i data-lucide="camera" class="w-5 h-5 mr-2 text-blue-500"></i> 
+                            Photo Submissions
+                        </h3>
+                        <div id="approvals-challenges-list" class="space-y-4 max-h-[60vh] overflow-y-auto"></div>
                     </div>
-                    <div>
-                        <h3 class="font-bold text-lg mb-4">Pending Product Orders</h3>
-                        <div id="approvals-orders-list" class="space-y-4">
-                            <!-- Filled by JS -->
-                        </div>
+
+                    <!-- Order Approvals -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="font-bold text-lg mb-4 text-gray-800 flex items-center">
+                            <i data-lucide="shopping-bag" class="w-5 h-5 mr-2 text-green-500"></i> 
+                            Product Orders
+                        </h3>
+                        <div id="approvals-orders-list" class="space-y-4 max-h-[60vh] overflow-y-auto"></div>
                     </div>
                 </div>
             </div>
@@ -170,18 +199,19 @@
                 <div class="flex justify-between mb-4">
                     <div class="relative">
                         <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-gray-400"></i>
-                        <input type="text" id="user-search" placeholder="Search Student ID..." class="pl-10 pr-4 py-2 border rounded-lg w-64">
+                        <input type="text" id="user-search" placeholder="Search ID or Name..." class="pl-10 pr-4 py-2.5 border rounded-lg w-72 focus:ring-2 focus:ring-green-500 outline-none">
                     </div>
-                    <button onclick="openUserModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">+ Add Student</button>
+                    <!-- Admin usually doesn't create users manually in this flow, but button provided for completeness -->
+                    <button onclick="alert('Please use the Auth Signup flow to create accounts.')" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">+ Invite Student</button>
                 </div>
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <table class="w-full text-left">
                         <thead class="bg-gray-50 text-xs uppercase text-gray-500 font-bold">
                             <tr>
-                                <th class="p-4">Student</th>
-                                <th class="p-4">ID / Course</th>
-                                <th class="p-4">Points</th>
-                                <th class="p-4">Plastic (Kg)</th>
+                                <th class="p-4">Student Details</th>
+                                <th class="p-4">Course</th>
+                                <th class="p-4">Wallet</th>
+                                <th class="p-4">Impact</th>
                                 <th class="p-4 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -190,41 +220,49 @@
                 </div>
             </div>
 
-            <!-- 5. EVENTS & RSVPs -->
+            <!-- 5. EVENTS -->
             <div id="view-events" class="view-section hidden">
-                <div class="flex justify-between mb-4">
-                    <h3 class="text-xl font-bold">Events Management</h3>
-                    <button onclick="openEventModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">+ Create Event</button>
+                <div class="flex justify-between mb-6">
+                    <h3 class="text-xl font-bold">Events & Attendance</h3>
+                    <button onclick="openEventModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-bold flex items-center">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Create Event
+                    </button>
                 </div>
                 <div id="events-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </div>
 
-            <!-- 6. STORE & PRODUCTS -->
+            <!-- 6. STORE -->
             <div id="view-store" class="view-section hidden">
-                <div class="flex justify-between mb-4">
+                <div class="flex justify-between mb-6">
                     <h3 class="text-xl font-bold">Store Inventory</h3>
-                    <div class="flex gap-2">
-                        <button onclick="openStoreModal()" class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300">Add Store</button>
-                        <button onclick="openProductModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">+ Add Product</button>
-                    </div>
+                    <button onclick="openProductModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-bold flex items-center">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add Product
+                    </button>
                 </div>
                 <div id="products-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
             </div>
 
              <!-- 7. COUPONS -->
              <div id="view-coupons" class="view-section hidden">
-                <div class="flex justify-between mb-4">
-                    <h3 class="text-xl font-bold">Active Coupons</h3>
-                    <button onclick="openCouponModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Generate Coupon</button>
+                <div class="flex justify-between mb-6">
+                    <h3 class="text-xl font-bold">Reward Coupons</h3>
+                    <button onclick="openCouponModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-bold flex items-center">
+                        <i data-lucide="ticket" class="w-4 h-4 mr-1"></i> Generate New
+                    </button>
                 </div>
-                <div id="coupons-list" class="space-y-3"></div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                     <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-50 font-bold text-gray-500"><tr><th class="p-3">Code</th><th class="p-3">Points</th><th class="p-3">Limit</th><th class="p-3">Redeemed</th><th class="p-3 text-right">Status</th></tr></thead>
+                        <tbody id="coupons-table-body" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- 8. LOGS -->
             <div id="view-logs" class="view-section hidden">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 class="font-bold mb-4">Detailed Activity Logs</h3>
-                    <div id="logs-list" class="space-y-0 divide-y divide-gray-100 h-[70vh] overflow-y-auto"></div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[80vh]">
+                    <div class="p-4 border-b border-gray-200 font-bold text-lg">System Activity Logs</div>
+                    <div id="logs-list" class="flex-1 overflow-y-auto p-0 divide-y divide-gray-100"></div>
                 </div>
             </div>
 
@@ -232,44 +270,57 @@
     </main>
 
     <!-- MODALS -->
-    <!-- 1. User Modal -->
+
+    <!-- User Edit Modal -->
     <div id="user-modal" class="modal-overlay hidden">
         <div class="modal-content w-full max-w-lg">
-            <div class="flex justify-between mb-4"><h3 class="font-bold text-lg">Manage Student</h3><button onclick="closeModal('user-modal')"><i data-lucide="x"></i></button></div>
+            <div class="flex justify-between mb-4 items-center"><h3 class="font-bold text-lg">Edit Student</h3><button onclick="closeModal('user-modal')"><i data-lucide="x"></i></button></div>
             <form id="user-form" class="space-y-3">
-                <input type="hidden" id="edit-user-id">
-                <input type="text" id="u-name" placeholder="Full Name" class="input-std" required>
+                <input type="hidden" id="u-id">
                 <div class="grid grid-cols-2 gap-3">
-                    <input type="text" id="u-std-id" placeholder="7 Digit ID" maxlength="7" class="input-std" required>
-                    <input type="text" id="u-course" placeholder="Course (e.g. FYBCOM)" class="input-std" required>
+                    <div class="col-span-2">
+                         <label class="text-xs font-bold text-gray-500">Full Name</label>
+                         <input type="text" id="u-name" class="input-std">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500">Student ID</label>
+                        <input type="text" id="u-std-id" class="input-std bg-gray-100" readonly>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500">Course</label>
+                        <input type="text" id="u-course" class="input-std">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-xs font-bold text-gray-500">Email</label>
+                        <input type="email" id="u-email" class="input-std">
+                    </div>
+                     <div class="col-span-2">
+                        <label class="text-xs font-bold text-gray-500">Mobile</label>
+                        <input type="text" id="u-mobile" class="input-std">
+                    </div>
                 </div>
-                <input type="email" id="u-email" placeholder="Email" class="input-std" required>
-                <input type="text" id="u-mobile" placeholder="Mobile" class="input-std">
-                <input type="text" id="u-pass" placeholder="Password (Plain Text)" class="input-std bg-yellow-50">
-                <div class="flex gap-2 pt-4">
-                    <button type="submit" class="btn-primary flex-1">Save Student</button>
-                </div>
+                <button type="submit" class="btn-primary w-full mt-4">Save Changes</button>
             </form>
         </div>
     </div>
 
-    <!-- 2. Event RSVP Modal -->
+    <!-- Event RSVP Modal -->
     <div id="rsvp-modal" class="modal-overlay hidden">
         <div class="modal-content w-full max-w-4xl h-[80vh] flex flex-col">
-            <div class="flex justify-between mb-4 pb-2 border-b">
+            <div class="flex justify-between mb-4 pb-2 border-b items-center">
                 <div>
-                    <h3 class="font-bold text-lg">Event Attendance</h3>
-                    <p id="rsvp-event-title" class="text-sm text-gray-500"></p>
+                    <h3 class="font-bold text-lg">Event RSVPs</h3>
+                    <p id="rsvp-event-title" class="text-xs text-gray-500"></p>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="downloadAttendancePDF()" class="btn-secondary text-sm flex items-center"><i data-lucide="download" class="w-4 h-4 mr-1"></i> Download PDF</button>
-                    <button onclick="closeModal('rsvp-modal')" class="text-gray-500"><i data-lucide="x"></i></button>
+                    <button onclick="downloadAttendancePDF()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-xs font-bold flex items-center"><i data-lucide="download" class="w-3 h-3 mr-1"></i> PDF</button>
+                    <button onclick="closeModal('rsvp-modal')"><i data-lucide="x" class="text-gray-400"></i></button>
                 </div>
             </div>
             <div id="rsvp-table-container" class="flex-1 overflow-y-auto">
                 <table class="w-full text-left text-sm" id="rsvp-table">
-                    <thead class="bg-gray-100 font-bold text-gray-600">
-                        <tr><th>Student ID</th><th>Name</th><th>Status</th><th>Action</th></tr>
+                    <thead class="bg-gray-50 font-bold text-gray-600 border-b">
+                        <tr><th class="p-3">ID</th><th class="p-3">Name</th><th class="p-3">Status</th><th class="p-3 text-right">Verification</th></tr>
                     </thead>
                     <tbody id="rsvp-list-body"></tbody>
                 </table>
@@ -277,65 +328,66 @@
         </div>
     </div>
 
-    <!-- 3. Product Modal -->
+    <!-- Product Modal -->
     <div id="product-modal" class="modal-overlay hidden">
-        <div class="modal-content w-full max-w-lg">
-            <div class="flex justify-between mb-4"><h3 class="font-bold text-lg">Manage Product</h3><button onclick="closeModal('product-modal')"><i data-lucide="x"></i></button></div>
+        <div class="modal-content w-full max-w-md">
+            <div class="flex justify-between mb-4 items-center"><h3 class="font-bold text-lg">Product Details</h3><button onclick="closeModal('product-modal')"><i data-lucide="x"></i></button></div>
             <form id="product-form" class="space-y-3">
-                <input type="hidden" id="edit-prod-id">
-                <select id="p-store" class="input-std mb-2"></select>
+                <input type="hidden" id="p-id">
+                <!-- Dynamic Store Select will be populated by JS -->
+                <select id="p-store" class="input-std bg-white"></select>
+                
                 <input type="text" id="p-name" placeholder="Product Name" class="input-std" required>
                 <div class="grid grid-cols-2 gap-3">
-                    <input type="number" id="p-cost" placeholder="EcoPoints Cost" class="input-std" required>
-                    <input type="number" id="p-price" placeholder="Original Price (₹)" class="input-std">
+                    <input type="number" id="p-cost" placeholder="Points Cost" class="input-std" required>
+                    <input type="number" id="p-price" placeholder="INR Price" class="input-std">
                 </div>
-                <textarea id="p-desc" placeholder="Description" class="input-std h-20"></textarea>
+                <textarea id="p-desc" placeholder="Short Description" class="input-std h-20"></textarea>
                 
-                <!-- Cloudinary Upload -->
+                <!-- Cloudinary -->
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 cursor-pointer relative">
                     <input type="file" id="p-file" class="absolute inset-0 opacity-0 cursor-pointer" accept="image/*">
-                    <i data-lucide="upload-cloud" class="mx-auto h-8 w-8 text-gray-400"></i>
-                    <p class="text-xs text-gray-500 mt-1" id="p-upload-text">Upload Image</p>
+                    <i data-lucide="upload-cloud" class="mx-auto h-8 w-8 text-gray-400 mb-1"></i>
+                    <p class="text-xs text-gray-500" id="p-upload-text">Upload Image (Cloudinary)</p>
                 </div>
                 <input type="hidden" id="p-img-url">
-                <div id="p-img-preview" class="hidden h-20 w-full bg-cover bg-center rounded mt-2"></div>
+                <div id="p-img-preview" class="hidden h-32 w-full bg-cover bg-center rounded-lg mt-2 border border-gray-200"></div>
 
-                <button type="button" onclick="saveProduct()" class="btn-primary w-full mt-4">Save Product</button>
+                <button type="button" onclick="saveProduct()" class="btn-primary w-full mt-2">Save to Store</button>
             </form>
         </div>
     </div>
 
-    <!-- 4. Coupon Modal -->
-    <div id="coupon-modal" class="modal-overlay hidden">
-        <div class="modal-content w-full max-w-md">
-            <div class="flex justify-between mb-4"><h3 class="font-bold text-lg">Generate Coupon</h3><button onclick="closeModal('coupon-modal')"><i data-lucide="x"></i></button></div>
-            <form id="coupon-form" class="space-y-3">
-                <div class="flex gap-2">
-                    <input type="text" id="c-code" placeholder="Code (Auto)" class="input-std font-mono" readonly>
-                    <button type="button" onclick="generateCouponCode()" class="bg-gray-200 px-3 rounded"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
-                </div>
-                <input type="number" id="c-points" placeholder="Points Value" class="input-std" required>
-                <input type="number" id="c-limit" placeholder="Max Redemptions" class="input-std" required>
-                <button type="button" onclick="saveCoupon()" class="btn-primary w-full mt-2">Create Coupon</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- 5. Event Modal -->
+    <!-- Event Create Modal -->
     <div id="event-modal" class="modal-overlay hidden">
         <div class="modal-content w-full max-w-lg">
-            <div class="flex justify-between mb-4"><h3 class="font-bold text-lg">Manage Event</h3><button onclick="closeModal('event-modal')"><i data-lucide="x"></i></button></div>
+            <div class="flex justify-between mb-4 items-center"><h3 class="font-bold text-lg">New Event</h3><button onclick="closeModal('event-modal')"><i data-lucide="x"></i></button></div>
             <form id="event-form" class="space-y-3">
-                 <input type="hidden" id="edit-event-id">
-                 <input type="text" id="e-title" placeholder="Event Title" class="input-std" required>
-                 <div class="grid grid-cols-2 gap-3">
+                <input type="text" id="e-title" placeholder="Event Title" class="input-std" required>
+                <div class="grid grid-cols-2 gap-3">
                     <input type="datetime-local" id="e-start" class="input-std" required>
-                    <input type="number" id="e-points" placeholder="Points Reward" class="input-std" required>
-                 </div>
-                 <textarea id="e-desc" placeholder="Description" class="input-std h-20"></textarea>
-                 <input type="text" id="e-loc" placeholder="Location" class="input-std">
-                 <button type="button" onclick="saveEvent()" class="btn-primary w-full mt-2">Save Event</button>
+                    <input type="number" id="e-points" placeholder="Reward Points" class="input-std" required>
+                </div>
+                <textarea id="e-desc" placeholder="Event Description" class="input-std h-24"></textarea>
+                <input type="text" id="e-loc" placeholder="Location" class="input-std">
+                <button type="button" onclick="saveEvent()" class="btn-primary w-full mt-4">Create Event</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Coupon Modal -->
+    <div id="coupon-modal" class="modal-overlay hidden">
+        <div class="modal-content w-full max-w-sm">
+             <div class="flex justify-between mb-4 items-center"><h3 class="font-bold text-lg">Create Coupon</h3><button onclick="closeModal('coupon-modal')"><i data-lucide="x"></i></button></div>
+             <div class="space-y-4">
+                <div class="flex gap-2">
+                    <input type="text" id="c-code" class="input-std text-center font-mono text-lg tracking-widest font-bold uppercase" readonly>
+                    <button onclick="generateCouponCode()" class="bg-gray-100 p-2 rounded hover:bg-gray-200"><i data-lucide="refresh-cw" class="w-5 h-5"></i></button>
+                </div>
+                <input type="number" id="c-points" placeholder="Points Value" class="input-std">
+                <input type="number" id="c-limit" placeholder="Usage Limit (e.g. 50)" class="input-std">
+                <button onclick="saveCoupon()" class="btn-primary w-full">Activate Coupon</button>
+             </div>
         </div>
     </div>
 
