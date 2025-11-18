@@ -3,8 +3,8 @@
 // =============================================
 
 // REPLACE THESE WITH YOUR ACTUAL SUPABASE PROJECT DETAILS
-const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE'; 
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const SUPABASE_URL = 'https://aggqmjxhnsbmsymwblqg.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZ3FtanhobnNibXN5bXdibHFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzNjQ0NTgsImV4cCI6MjA3ODk0MDQ1OH0.YZmrw7-LtIjlvTkU0c7G8qZ2VDNO8PeHudkGVo1PQ8Q';
 
 // FIX: Use a different variable name to avoid conflict with the global 'supabase' library
 const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
