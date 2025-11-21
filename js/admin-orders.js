@@ -1,11 +1,12 @@
 import { supabase } from './supabase-client.js';
 
 export const renderOrders = async (container) => {
+    // FIX: Explicitly linked 'users' via 'user_id' to avoid ambiguity with 'approved_by'
     const { data: orders, error } = await supabase
         .from('orders')
         .select(`
             *,
-            users (full_name, student_id),
+            users!user_id (full_name, student_id),
             order_items (
                 quantity,
                 products (name)
@@ -20,7 +21,6 @@ export const renderOrders = async (container) => {
             <h3 class="font-bold text-xl text-gray-800">Order Management</h3>
             <div class="flex gap-2">
                 <button class="px-3 py-1 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Filter</button>
-                <button class="px-3 py-1 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Export</button>
             </div>
         </div>
 
@@ -59,10 +59,11 @@ export const renderOrders = async (container) => {
                                         ${o.status}
                                     </span>
                                 </td>
-                                <td class="p-4 text-right">
+                                <td class="p-4 text-right flex justify-end gap-2">
                                     ${o.status === 'pending' ? `
-                                        <button onclick="updateOrderStatus('${o.id}', 'confirmed')" class="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700 transition">Complete</button>
-                                    ` : `<span class="text-gray-400 text-xs">No Action</span>`}
+                                        <button onclick="updateOrderStatus('${o.id}', 'confirmed')" class="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700 transition">Mark Redeemed</button>
+                                        <button onclick="updateOrderStatus('${o.id}', 'cancelled')" class="bg-red-100 text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-200 transition">Cancel</button>
+                                    ` : `<span class="text-gray-400 text-xs font-medium">Completed</span>`}
                                 </td>
                             </tr>
                         `}).join('')}
@@ -75,17 +76,27 @@ export const renderOrders = async (container) => {
 };
 
 window.updateOrderStatus = async (orderId, status) => {
-    if (!confirm(`Are you sure you want to mark this order as ${status}?`)) return;
-    const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
-    if (error) alert('Error updating order');
-    else {
-        // Simple UI feedback: fade out the row
-        const btn = document.querySelector(`button[onclick*="${orderId}"]`);
-        if(btn) {
-            const row = btn.closest('tr');
-            row.style.opacity = '0.5';
-            btn.disabled = true;
-            btn.innerText = 'Updated';
-        }
+    const action = status === 'confirmed' ? 'Mark as Redeemed' : 'Cancel Order';
+    if (!confirm(`Are you sure you want to ${action}?`)) return;
+    
+    // Update query with approved_by admin ID
+    const { data: { user } } = await supabase.auth.getUser(); // Get current admin ID
+    const adminId = user ? (await supabase.from('users').select('id').eq('auth_user_id', user.id).single()).data?.id : null;
+
+    const { error } = await supabase
+        .from('orders')
+        .update({ 
+            status: status, 
+            approved_by: adminId,
+            approved_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+    if (error) {
+        console.error(error);
+        alert('Error updating order: ' + error.message);
+    } else {
+        // Refresh the list or UI update
+        renderOrders(document.getElementById('view-container'));
     }
 };
