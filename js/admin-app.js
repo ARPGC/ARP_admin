@@ -4,16 +4,15 @@ import { supabase } from './supabase-client.js';
 import { renderDashboard } from './admin-dashboard.js';
 import { renderUsers } from './admin-users.js';
 import { renderEvents } from './admin-events.js';
-import { renderStores } from './admin-store.js';      // Updated for separate page
-import { renderProducts } from './admin-products.js'; // Updated for separate page
-import { renderOrders } from './admin-store.js';      // Orders might still be in store.js or moved to orders.js
+import { renderStores } from './admin-store.js';      
+import { renderProducts } from './admin-products.js'; 
+import { renderOrders } from './admin-orders.js'; // <--- FIX: Import from new file
 import { renderReviews, renderChallenges } from './admin-reviews.js';
 import { renderLeaderboard } from './admin-leaderboard.js';
 import { renderCodes } from './admin-codes.js';
 
 // Global Auth Check
 const checkAdminAuth = async () => {
-    // 1. Check Session
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
@@ -21,14 +20,12 @@ const checkAdminAuth = async () => {
         return;
     }
     
-    // 2. Verify Role (Fix: Check auth_user_id instead of id)
     const { data: user, error } = await supabase
         .from('users')
         .select('role, full_name')
         .eq('auth_user_id', session.user.id)
         .single();
 
-    // 3. Redirect if not admin
     if (error || !user || user.role !== 'admin') {
         console.error("Auth Error or Not Admin:", error);
         await supabase.auth.signOut();
@@ -36,7 +33,6 @@ const checkAdminAuth = async () => {
         return;
     }
 
-    // 4. Success - Load Dashboard
     const nameEl = document.getElementById('admin-name');
     if(nameEl) nameEl.textContent = user.full_name;
     loadView('dashboard');
@@ -49,12 +45,9 @@ window.loadView = (view) => {
     
     if (!container) return;
 
-    // Show loading state
     container.innerHTML = '<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div></div>';
 
-    // Update Navigation Styling
     document.querySelectorAll('.nav-btn').forEach(btn => {
-        // Check if the button's onclick attribute contains the current view name
         if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${view}'`)) {
             btn.classList.add('bg-gray-800', 'text-white');
             btn.classList.remove('text-gray-300');
@@ -64,7 +57,6 @@ window.loadView = (view) => {
         }
     });
 
-    // Load Content with slight delay for UI feel
     setTimeout(() => {
         switch(view) {
             case 'dashboard': 
@@ -110,18 +102,15 @@ window.loadView = (view) => {
             default: 
                 renderDashboard(container);
         }
-        // Re-initialize icons after DOM update
         if(window.lucide) window.lucide.createIcons();
     }, 100); 
 };
 
-// Logout Handler
 window.handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = 'admin-login.html';
 };
 
-// Modal Helpers
 window.closeModal = () => {
     const overlay = document.getElementById('modal-overlay');
     const content = document.getElementById('modal-content');
@@ -139,7 +128,6 @@ window.openModal = (html) => {
 
     content.innerHTML = html;
     overlay.classList.remove('hidden');
-    // Animate in
     setTimeout(() => {
         content.classList.remove('scale-95', 'opacity-0');
         content.classList.add('scale-100', 'opacity-100');
@@ -147,5 +135,4 @@ window.openModal = (html) => {
     }, 10);
 };
 
-// Start Application
 checkAdminAuth();
