@@ -5,16 +5,20 @@ import { supabase } from './supabase-client.js';
 // =======================
 export const renderChallenges = async (container) => {
     // Fetch Challenges
-    const { data: challenges } = await supabase
+    const { data: challenges, error: cError } = await supabase
         .from('challenges')
         .select('*')
         .order('created_at', { ascending: false });
 
+    if (cError) console.error('Error loading challenges:', cError);
+
     // Fetch Quizzes
-    const { data: quizzes } = await supabase
+    const { data: quizzes, error: qError } = await supabase
         .from('daily_quizzes')
         .select('*')
         .order('available_date', { ascending: false });
+
+    if (qError) console.error('Error loading quizzes:', qError);
 
     container.innerHTML = `
         <!-- Tabs -->
@@ -48,7 +52,7 @@ export const renderChallenges = async (container) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        ${challenges.map(c => `
+                        ${(challenges || []).map(c => `
                             <tr class="hover:bg-gray-50 transition">
                                 <td class="p-4">
                                     <div class="font-bold text-gray-900">${c.title}</div>
@@ -62,7 +66,7 @@ export const renderChallenges = async (container) => {
                                     </span>
                                 </td>
                                 <td class="p-4 text-right flex justify-end gap-2">
-                                    <button onclick="openReviewModal('${c.id}', '${c.title}')" class="bg-blue-50 text-blue-600 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-100 transition flex items-center gap-1">
+                                    <button onclick="openReviewModal('${c.id}', '${c.title.replace(/'/g, "\\'")}')" class="bg-blue-50 text-blue-600 px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-100 transition flex items-center gap-1">
                                         <i data-lucide="check-circle" class="w-3 h-3"></i> Review
                                     </button>
                                     <button onclick="openChallengeModal('${c.id}')" class="bg-gray-100 text-gray-600 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-200 transition">
@@ -96,7 +100,7 @@ export const renderChallenges = async (container) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        ${quizzes.map(q => `
+                        ${(quizzes || []).map(q => `
                             <tr class="hover:bg-gray-50 transition">
                                 <td class="p-4 font-mono text-xs text-gray-500 font-bold">
                                     ${new Date(q.available_date).toLocaleDateString()}
@@ -190,7 +194,7 @@ window.openChallengeModal = async (id = null) => {
             </form>
         </div>
         <style>
-            .label { display: block; font-size: 0.75rem; font-weight: 700; color: #374151; margin-bottom: 4px; uppercase; }
+            .label { display: block; font-size: 0.75rem; font-weight: 700; color: #374151; margin-bottom: 4px; }
             .input-field { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; }
         </style>
     `;
@@ -215,13 +219,23 @@ window.openChallengeModal = async (id = null) => {
     });
 };
 
-// Review Submissions
+// Review Submissions (FIXED CRASH ISSUE)
 window.openReviewModal = async (challengeId, title) => {
-    const { data: subs } = await supabase
+    // Use maybeSingle or select to ensure we handle errors gracefully
+    const { data: subs, error } = await supabase
         .from('challenge_submissions')
         .select('*, users(full_name, student_id)')
         .eq('challenge_id', challengeId)
         .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Error fetching submissions:", error);
+        alert("Failed to load submissions. Check console.");
+        return;
+    }
+
+    // Ensure subs is an array even if null
+    const safeSubs = subs || [];
 
     const html = `
         <div class="flex flex-col h-full bg-gray-50">
@@ -233,20 +247,21 @@ window.openReviewModal = async (challengeId, title) => {
                 <button onclick="closeModal()" class="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-6 overflow-y-auto space-y-4">
-                ${subs.length === 0 ? '<p class="text-center text-gray-500">No submissions found.</p>' : ''}
-                ${subs.map(s => `
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex gap-4 items-start">
+                ${safeSubs.length === 0 ? '<p class="text-center text-gray-500 py-10">No submissions found for this challenge.</p>' : ''}
+                
+                ${safeSubs.map(s => `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-4 items-start">
                         ${s.submission_url 
-                            ? `<a href="${s.submission_url}" target="_blank" class="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden block border hover:opacity-80 flex-shrink-0">
-                                 <img src="${s.submission_url}" class="w-full h-full object-cover">
+                            ? `<a href="${s.submission_url}" target="_blank" class="w-full sm:w-32 h-32 bg-gray-100 rounded-lg overflow-hidden block border hover:opacity-80 flex-shrink-0">
+                                 <img src="${s.submission_url}" class="w-full h-full object-cover" alt="Submission Proof">
                                </a>`
-                            : `<div class="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs flex-shrink-0">No Image</div>`
+                            : `<div class="w-full sm:w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs flex-shrink-0">No Image</div>`
                         }
-                        <div class="flex-1">
-                            <div class="flex justify-between">
+                        <div class="flex-1 w-full">
+                            <div class="flex justify-between items-start">
                                 <div>
-                                    <h4 class="font-bold text-gray-900">${s.users.full_name}</h4>
-                                    <p class="text-xs text-gray-500">${s.users.student_id}</p>
+                                    <h4 class="font-bold text-gray-900">${s.users?.full_name || 'Unknown User'}</h4>
+                                    <p class="text-xs text-gray-500">${s.users?.student_id || 'N/A'}</p>
                                 </div>
                                 <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${
                                     s.status === 'approved' ? 'bg-green-100 text-green-700' :
@@ -255,12 +270,16 @@ window.openReviewModal = async (challengeId, title) => {
                                 }">${s.status}</span>
                             </div>
                             
-                            <p class="text-xs text-gray-400 mt-2 mb-3">Submitted: ${new Date(s.created_at).toLocaleString()}</p>
+                            <p class="text-xs text-gray-400 mt-2 mb-4">Submitted: ${new Date(s.created_at).toLocaleString()}</p>
                             
                             ${s.status === 'pending' ? `
-                                <div class="flex gap-2">
-                                    <button onclick="decideSubmission('${s.id}', 'approved', '${challengeId}', '${title}')" class="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-green-700">Approve</button>
-                                    <button onclick="decideSubmission('${s.id}', 'rejected', '${challengeId}', '${title}')" class="bg-red-100 text-red-600 px-4 py-1.5 rounded text-xs font-bold hover:bg-red-200">Reject</button>
+                                <div class="flex gap-3 border-t pt-3">
+                                    <button onclick="decideSubmission('${s.id}', 'approved', '${challengeId}', '${title}')" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
+                                        Accept
+                                    </button>
+                                    <button onclick="decideSubmission('${s.id}', 'rejected', '${challengeId}', '${title}')" class="flex-1 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 transition shadow-sm">
+                                        Reject
+                                    </button>
                                 </div>
                             ` : ''}
                         </div>
@@ -273,19 +292,30 @@ window.openReviewModal = async (challengeId, title) => {
 };
 
 window.decideSubmission = async (subId, status, cId, cTitle) => {
-    if (!confirm(`Mark this submission as ${status}?`)) return;
+    const confirmMsg = status === 'approved' ? 'Approve this submission and award points?' : 'Reject this submission?';
+    if (!confirm(confirmMsg)) return;
     
+    // Get current admin ID
     const { data: { user } } = await supabase.auth.getUser();
-    // Get admin ID from public.users
     const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
 
+    // Update Status
     const { error } = await supabase
         .from('challenge_submissions')
-        .update({ status: status, admin_id: adminUser?.id })
+        .update({ 
+            status: status, 
+            admin_id: adminUser?.id,
+            // Add updated_at timestamp
+            updated_at: new Date().toISOString()
+        })
         .eq('id', subId);
 
-    if (error) alert('Error: ' + error.message);
-    else openReviewModal(cId, cTitle); // Refresh modal
+    if (error) {
+        alert('Error: ' + error.message);
+    } else {
+        // Refresh the modal to show updated status
+        openReviewModal(cId, cTitle);
+    }
 };
 
 
@@ -306,8 +336,10 @@ window.openQuizModal = async (id = null) => {
         const { data: existing } = await supabase.from('daily_quizzes').select('*').eq('id', id).single();
         if(existing) {
             data = existing;
-            // Parse options if stored as JSON string, or use directly if JSONB
-            if (typeof data.options === 'string') data.options = JSON.parse(data.options);
+            // Handle JSON parsing if Supabase returns string for jsonb
+            if (typeof data.options === 'string') {
+                try { data.options = JSON.parse(data.options); } catch(e) {}
+            }
         }
     }
 
@@ -338,7 +370,7 @@ window.openQuizModal = async (id = null) => {
                     <div class="space-y-3">
                         ${[0, 1, 2, 3].map(i => `
                             <div class="flex items-center gap-2">
-                                <input type="radio" name="correct_option" value="${i}" ${data.correct_option_index === i ? 'checked' : ''} title="Select as Correct Answer">
+                                <input type="radio" name="correct_option" value="${i}" ${data.correct_option_index === i ? 'checked' : ''} title="Select as Correct Answer" class="w-4 h-4 text-brand-600">
                                 <input type="text" class="input-field q-option" value="${data.options[i] || ''}" placeholder="Option ${i+1}" required>
                             </div>
                         `).join('')}
@@ -370,7 +402,7 @@ window.openQuizModal = async (id = null) => {
 
         const payload = {
             question: document.getElementById('q-question').value,
-            options: options, // JSONB handles array automatically
+            options: options, 
             correct_option_index: correctIndex,
             points_reward: parseInt(document.getElementById('q-points').value),
             available_date: document.getElementById('q-date').value
@@ -387,11 +419,19 @@ window.openQuizModal = async (id = null) => {
 
 // View Quiz Results
 window.viewQuizResults = async (quizId) => {
-    const { data: results } = await supabase
+    const { data: results, error } = await supabase
         .from('quiz_submissions')
         .select('*, users(full_name, student_id)')
         .eq('quiz_id', quizId)
         .order('submitted_at', { ascending: false });
+
+    if (error) {
+        console.error(error);
+        alert("Could not load results.");
+        return;
+    }
+
+    const safeResults = results || [];
 
     const html = `
         <div class="flex flex-col h-full bg-white">
@@ -409,12 +449,12 @@ window.viewQuizResults = async (quizId) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        ${results.length === 0 ? '<tr><td colspan="3" class="p-4 text-center text-gray-500">No attempts yet.</td></tr>' : ''}
-                        ${results.map(r => `
+                        ${safeResults.length === 0 ? '<tr><td colspan="3" class="p-4 text-center text-gray-500">No attempts yet.</td></tr>' : ''}
+                        ${safeResults.map(r => `
                             <tr>
                                 <td class="p-4">
-                                    <div class="font-bold text-gray-900">${r.users.full_name}</div>
-                                    <div class="text-xs text-gray-500">${r.users.student_id}</div>
+                                    <div class="font-bold text-gray-900">${r.users?.full_name || 'Unknown'}</div>
+                                    <div class="text-xs text-gray-500">${r.users?.student_id || '-'}</div>
                                 </td>
                                 <td class="p-4">
                                     <span class="px-2 py-1 rounded text-xs font-bold ${r.is_correct ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
