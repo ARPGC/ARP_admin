@@ -62,33 +62,38 @@ window.openStoreModal = async (storeId = null) => {
     }
 
     const html = `
-        <div class="p-6">
-            <h3 class="text-xl font-bold mb-4">${storeId ? 'Edit Store' : 'Create New Store'}</h3>
-            <form id="store-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Store Name</label>
-                    <input type="text" id="store-name" value="${store.name}" class="w-full border p-2 rounded mt-1" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea id="store-desc" class="w-full border p-2 rounded mt-1">${store.description || ''}</textarea>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Logo</label>
-                    <div class="flex gap-2 mt-1">
-                        <input type="text" id="store-logo-url" value="${store.logo_url || ''}" placeholder="Image URL" class="flex-1 border p-2 rounded">
-                        <span class="self-center text-gray-500 text-xs">OR</span>
-                        <input type="file" id="store-logo-file" class="text-sm text-gray-500 w-1/3">
+        <div class="relative">
+            <div class="flex justify-between items-center p-6 border-b border-gray-100">
+                <h3 class="text-xl font-bold text-gray-800">${storeId ? 'Edit Store' : 'Create New Store'}</h3>
+                <button onclick="closeModal()" class="p-2 hover:bg-gray-100 rounded-full text-gray-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6">
+                <form id="store-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Store Name</label>
+                        <input type="text" id="store-name" value="${store.name}" class="w-full border p-2 rounded mt-1" required>
                     </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" id="store-active" ${store.is_active ? 'checked' : ''}>
-                    <label for="store-active" class="text-sm text-gray-700">Store is Active</label>
-                </div>
-                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-2 rounded hover:bg-brand-700 mt-4">
-                    ${storeId ? 'Update Store' : 'Create Store'}
-                </button>
-            </form>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Description</label>
+                        <textarea id="store-desc" class="w-full border p-2 rounded mt-1">${store.description || ''}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Logo</label>
+                        <div class="flex gap-2 mt-1">
+                            <input type="text" id="store-logo-url" value="${store.logo_url || ''}" placeholder="Image URL" class="flex-1 border p-2 rounded">
+                            <span class="self-center text-gray-500 text-xs">OR</span>
+                            <input type="file" id="store-logo-file" class="text-sm text-gray-500 w-1/3">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-4">
+                        <input type="checkbox" id="store-active" ${store.is_active ? 'checked' : ''} class="w-4 h-4 text-brand-600 rounded">
+                        <label for="store-active" class="text-sm text-gray-700">Store is Active</label>
+                    </div>
+                    <button type="submit" class="w-full bg-brand-600 text-white font-bold py-2 rounded hover:bg-brand-700 mt-4 shadow-md">
+                        ${storeId ? 'Update Store' : 'Create Store'}
+                    </button>
+                </form>
+            </div>
         </div>
     `;
     openModal(html);
@@ -130,7 +135,7 @@ window.openStoreModal = async (storeId = null) => {
             btn.disabled = false; btn.innerText = 'Save';
         } else {
             closeModal();
-            loadView('stores');
+            renderStores(document.getElementById('view-container'));
         }
     });
 };
