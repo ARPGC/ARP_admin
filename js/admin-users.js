@@ -64,13 +64,8 @@ export const renderUsers = async (container) => {
 
 // Global function to open user detail modal
 window.openUserDetail = async (userId) => {
-    // Fetch User Profile
     const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
-    
-    // Fetch Recent 5 Logs
     const { data: logs } = await supabase.from('user_activity_log').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(5);
-    
-    // Fetch Recent 5 Transactions
     const { data: txs } = await supabase.from('points_ledger').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(5);
     
     const tickUrl = user.tick_type ? TICK_ICONS[user.tick_type.toLowerCase()] : null;
@@ -99,14 +94,27 @@ window.openUserDetail = async (userId) => {
             <!-- Scrollable Content -->
             <div class="p-6 overflow-y-auto space-y-6">
                 
-                <!-- Actions -->
+                <!-- Security Actions -->
                 <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
                     <div>
                         <h4 class="font-bold text-gray-800">Security Actions</h4>
-                        <p class="text-xs text-gray-500">Reset user password to default.</p>
+                        <p class="text-xs text-gray-500">Reset user password to default 'student'.</p>
                     </div>
-                    <button onclick="resetUserPassword('${user.id}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition">
-                        Reset Password to 'student'
+                    <button onclick="resetUserPassword('${user.id}')" class="bg-gray-800 hover:bg-black text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition">
+                        Reset Password
+                    </button>
+                </div>
+
+                <!-- Revoke Points Section (NEW) -->
+                <div class="bg-red-50 p-5 rounded-xl border border-red-100 shadow-sm">
+                    <h4 class="font-bold text-red-800 mb-2 flex items-center gap-2"><i data-lucide="alert-triangle" class="w-4 h-4"></i> Revoke Points</h4>
+                    <p class="text-xs text-red-600 mb-4">Deduct points earned by unethical means. This will be logged.</p>
+                    <div class="grid grid-cols-3 gap-3">
+                        <input type="number" id="revoke-amount-${user.id}" placeholder="Points (e.g. 50)" class="border border-red-200 p-2 rounded text-sm focus:ring-red-500 focus:border-red-500">
+                        <input type="text" id="revoke-reason-${user.id}" placeholder="Reason (e.g. Fake Photo)" class="border border-red-200 p-2 rounded text-sm focus:ring-red-500 focus:border-red-500 col-span-2">
+                    </div>
+                    <button onclick="revokeUserPoints('${user.id}')" class="w-full mt-3 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm transition">
+                        Revoke Points
                     </button>
                 </div>
 
@@ -123,7 +131,7 @@ window.openUserDetail = async (userId) => {
                                     <p class="font-medium text-gray-800">${t.description || 'Transaction'}</p>
                                     <p class="text-xs text-gray-400">${new Date(t.created_at).toLocaleDateString()}</p>
                                 </div>
-                                <span class="${t.points_delta > 0 ? 'text-green-600' : 'text-red-500'} font-bold">
+                                <span class="${t.points_delta > 0 ? 'text-green-600' : 'text-red-600'} font-bold">
                                     ${t.points_delta > 0 ? '+' : ''}${t.points_delta}
                                 </span>
                             </div>
@@ -150,7 +158,7 @@ window.openUserDetail = async (userId) => {
                     </div>
                 </div>
 
-                <!-- User Data Raw (Optional Edit) -->
+                <!-- User Data Raw -->
                 <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                     <h3 class="font-bold text-gray-800 mb-4">Edit Profile</h3>
                     <div class="grid grid-cols-2 gap-4">
@@ -180,19 +188,53 @@ window.openUserDetail = async (userId) => {
     openModal(modalHtml);
 };
 
-// Reset Password Logic
-window.resetUserPassword = async (userId) => {
-    if(!confirm("Are you sure you want to reset this user's password to 'student'?")) return;
+// Revoke Points Function
+window.revokeUserPoints = async (userId) => {
+    const amount = document.getElementById(`revoke-amount-${userId}`).value;
+    const reason = document.getElementById(`revoke-reason-${userId}`).value;
 
-    // Note: Admin Client cannot reset Auth password directly without Service Role.
-    // We update the 'password_plain' column if you use that for manual login checks, 
-    // OR this serves as a placeholder for the Server Function call.
-    const { error } = await supabase.from('users').update({ password_plain: 'student' }).eq('id', userId);
+    if (!amount || amount <= 0) { alert("Please enter a valid amount."); return; }
+    if (!reason) { alert("Please enter a reason for revoking points."); return; }
+
+    if (!confirm(`Are you sure you want to revoke ${amount} points from this user?`)) return;
+
+    // 1. Get current Admin ID
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
+
+    // 2. Insert Negative Record into Points Ledger
+    // The SQL Trigger will automatically update the User's balance
+    const { error } = await supabase.from('points_ledger').insert({
+        user_id: userId,
+        source_type: 'admin_revoke',
+        points_delta: -1 * Math.abs(amount), // Ensure it's negative
+        description: `Revoked: ${reason}`,
+        created_by: adminUser?.id
+    });
+
+    if (error) {
+        alert("Error revoking points: " + error.message);
+    } else {
+        alert(`Successfully revoked ${amount} points.`);
+        openUserDetail(userId); // Refresh Modal
+        renderUsers(document.getElementById('view-container')); // Refresh List
+    }
+};
+
+// Reset Password Logic (Calls SQL RPC)
+window.resetUserPassword = async (userId) => {
+    if(!confirm("This will reset the Auth password to 'student'. Continue?")) return;
+
+    const { error } = await supabase.rpc('admin_reset_password', { 
+        target_user_id: userId, 
+        new_password: 'student' 
+    });
     
     if(error) {
-        alert("Error resetting: " + error.message);
+        console.error(error);
+        alert("Error resetting password: " + error.message);
     } else {
-        alert("Password reset to 'student' (Database updated).");
+        alert("Password successfully reset to 'student'.");
     }
 };
 
@@ -209,10 +251,8 @@ window.updateUserProfile = async (userId) => {
     if(error) alert('Error: ' + error.message);
     else {
         alert('Profile updated!');
-        openUserDetail(userId); // Refresh Modal
-        // Also refresh main list
-        const container = document.getElementById('view-container');
-        if(container) renderUsers(container);
+        openUserDetail(userId);
+        renderUsers(document.getElementById('view-container'));
     }
 };
 
