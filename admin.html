@@ -52,17 +52,20 @@
 
             <div class="pt-4 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider px-3">Management</div>
             
-            <button onclick="loadView('users')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="users" class="w-5 h-5 mr-3"></i>Users
-            </button>
-            
-            <button onclick="loadView('reviews')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="check-square" class="w-5 h-5 mr-3"></i>Reviews & Plastic
-            </button>
-            
-            <button onclick="loadView('events')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>Events & RSVP
-            </button>
+            <!-- Find this section in your <nav> -->
+<button onclick="loadView('users')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
+    <i data-lucide="users" class="w-5 h-5 mr-3"></i>Users
+</button>
+
+<!-- REPLACE THE OLD 'Reviews & Plastic' BUTTON WITH THIS -->
+<button onclick="loadView('plastic')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
+    <i data-lucide="recycle" class="w-5 h-5 mr-3"></i>Plastic Logs
+</button>
+<!-- END REPLACEMENT -->
+
+<button onclick="loadView('events')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
+    <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>Events & RSVP
+</button>
 
             <div class="pt-4 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider px-3">Commerce</div>
             
