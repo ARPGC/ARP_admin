@@ -4,12 +4,18 @@ import { supabase } from './supabase-client.js';
 // 1. RENDER EVENTS LIST
 // =======================
 export const renderEvents = async (container) => {
+    console.log("Rendering Events List...");
+    
     const { data: events, error } = await supabase
         .from('events')
         .select('*, event_attendance(count)')
         .order('start_at', { ascending: false });
 
-    if (error) console.error('Error loading events:', error);
+    if (error) {
+        console.error('Error loading events:', error);
+        container.innerHTML = `<p class="text-red-500 p-4">Error loading events. Check console.</p>`;
+        return;
+    }
 
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
@@ -26,12 +32,12 @@ export const renderEvents = async (container) => {
                     ? '<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">Completed</span>'
                     : '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Upcoming</span>';
 
-                // Safe count access
+                // FIX: Ultra-safe count access to prevent "null reading length" error
                 let rsvpCount = 0;
                 if (e.event_attendance) {
                     if (Array.isArray(e.event_attendance)) {
                         if (e.event_attendance.length > 0) rsvpCount = e.event_attendance[0].count;
-                    } else {
+                    } else if (typeof e.event_attendance === 'object') {
                         rsvpCount = e.event_attendance.count || 0;
                     }
                 }
@@ -178,10 +184,12 @@ window.openEventModal = async (eventId = null) => {
 // 3. ATTENDANCE & RSVP MANAGER
 // =======================
 window.openAttendance = async (eventId) => {
+    console.log("Opening Attendance for:", eventId);
+    
     const { data: event, error: evError } = await supabase.from('events').select('*').eq('id', eventId).single();
     if (evError) { console.error("Event fetch error:", evError); return; }
 
-    // FIX: Use users!user_id to avoid ambiguous column
+    // Fetch Attendees (using users!user_id to fix ambiguity)
     const { data: attendees, error: attError } = await supabase
         .from('event_attendance')
         .select('*, users!user_id(full_name, student_id, course)')
@@ -249,7 +257,6 @@ window.openAttendance = async (eventId) => {
                                 <td class="p-4 text-right">
                                     ${a.status === 'confirmed' 
                                         ? `<span class="text-green-600 font-bold text-xs flex items-center justify-end gap-1"><i data-lucide="check" class="w-3 h-3"></i> Awarded</span>` 
-                                        // FIX: Added 'this' parameter to pass the button element
                                         : `<button onclick="markPresent(this, '${a.id}', '${eventId}', ${isEventCompleted})" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed" ${!isEventCompleted ? 'disabled' : ''}>
                                             Mark Present
                                            </button>`
@@ -267,35 +274,50 @@ window.openAttendance = async (eventId) => {
 };
 
 // =======================
-// 4. MARK PRESENT (Logic) - FIXED & ROBUST
+// 4. MARK PRESENT (Logic) - DEBUG VERSION
 // =======================
 window.markPresent = async (btnElement, rowId, eventId, isCompleted) => {
+    console.log("Mark Present Triggered", { rowId, eventId, isCompleted });
+
     if (!isCompleted) {
         alert("You cannot mark attendance before the event is completed.");
         return;
     }
 
-    if (!confirm("Mark user as present? This will award points and CANNOT be undone.")) return;
+    if (!confirm("Mark user as present? This will award points and CANNOT be undone.")) {
+        console.log("User cancelled.");
+        return;
+    }
 
-    // 1. Immediate Visual Feedback
-    const originalText = btnElement.innerText;
-    btnElement.innerText = "Processing...";
-    btnElement.disabled = true;
+    // Provide immediate feedback
+    if (btnElement) {
+        btnElement.innerText = "Processing...";
+        btnElement.disabled = true;
+    }
 
     try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("You are not logged in.");
+        
+        if (!user) {
+            console.error("No logged in user found.");
+            throw new Error("You are not logged in.");
+        }
 
-        // 2. Get Admin Profile ID safely
+        // Get Admin ID from public.users
         const { data: admin, error: adminError } = await supabase
             .from('users')
             .select('id')
             .eq('auth_user_id', user.id)
             .single();
 
-        if (adminError || !admin) throw new Error("Admin profile not found.");
+        if (adminError || !admin) {
+            console.error("Admin profile fetch error:", adminError);
+            throw new Error("Admin profile not found.");
+        }
 
-        // 3. Update Status - Trigger awards points
+        console.log("Updating attendance status...");
+
+        // Update Status - Trigger awards points
         const { error } = await supabase
             .from('event_attendance')
             .update({ 
@@ -304,9 +326,12 @@ window.markPresent = async (btnElement, rowId, eventId, isCompleted) => {
             })
             .eq('id', rowId);
 
-        if (error) throw error;
+        if (error) {
+            console.error("Update failed:", error);
+            throw error;
+        }
 
-        // 4. Refresh List Immediately
+        console.log("Update successful. Refreshing modal...");
         await openAttendance(eventId);
 
     } catch (err) {
@@ -314,8 +339,10 @@ window.markPresent = async (btnElement, rowId, eventId, isCompleted) => {
         alert('Error: ' + err.message);
         
         // Reset button on failure
-        btnElement.innerText = originalText;
-        btnElement.disabled = false;
+        if (btnElement) {
+            btnElement.innerText = "Mark Present";
+            btnElement.disabled = false;
+        }
     }
 };
 
@@ -326,8 +353,6 @@ window.downloadAttendancePDF = async (eventId) => {
     const { jsPDF } = window.jspdf;
     
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-    
-    // FIX: Use users!user_id relation
     const { data: attendees } = await supabase
         .from('event_attendance')
         .select('status, users!user_id(full_name, student_id, course, email)')
