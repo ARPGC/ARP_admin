@@ -92,17 +92,19 @@ window.openProductModal = async (productId = null) => {
     }
 
     const html = `
-        <div class="relative flex flex-col h-full">
-            <!-- Header -->
-            <div class="flex justify-between items-center p-6 border-b border-gray-100 bg-white sticky top-0 z-10">
+        <!-- Main Modal Wrapper with Fixed Height -->
+        <div class="flex flex-col h-[85vh]"> 
+            
+            <!-- Fixed Header -->
+            <div class="flex justify-between items-center p-6 border-b border-gray-100 bg-white shrink-0">
                 <h3 class="text-xl font-bold text-gray-800">${productId ? 'Edit Product' : 'Add Product'}</h3>
                 <button onclick="closeModal()" class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 text-gray-600 transition-colors">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
-            <!-- Scrollable Form Content -->
-            <div class="p-6 overflow-y-auto flex-grow bg-gray-50">
+            <!-- Scrollable Body -->
+            <div class="flex-grow overflow-y-auto p-6 bg-gray-50 custom-scrollbar">
                 <form id="product-form" class="space-y-6 max-w-4xl mx-auto">
                     
                     <!-- 1. Basic Info -->
@@ -111,30 +113,30 @@ window.openProductModal = async (productId = null) => {
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="md:col-span-2">
                                 <label class="label">Product Name</label>
-                                <input type="text" id="p-name" value="${prod.name}" class="input-field" placeholder="e.g. Eco-Friendly Water Bottle" required>
+                                <input type="text" id="p-name" value="${prod.name}" class="input-field w-full" placeholder="e.g. Eco-Friendly Water Bottle" required>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="label">Description</label>
-                                <textarea id="p-desc" class="input-field" rows="3" placeholder="Describe the product...">${prod.description || ''}</textarea>
+                                <textarea id="p-desc" class="input-field w-full" rows="3" placeholder="Describe the product...">${prod.description || ''}</textarea>
                             </div>
                             <div>
                                 <label class="label">Store</label>
-                                <select id="p-store" class="input-field" required>
+                                <select id="p-store" class="input-field w-full" required>
                                     <option value="">Select Store</option>
                                     ${stores.map(s => `<option value="${s.id}" ${prod.store_id === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
                                 </select>
                             </div>
                             <div>
                                 <label class="label">EcoPoints Cost</label>
-                                <input type="number" id="p-points" value="${prod.ecopoints_cost}" class="input-field font-bold text-green-600" placeholder="0" required>
+                                <input type="number" id="p-points" value="${prod.ecopoints_cost}" class="input-field w-full font-bold text-green-600" placeholder="0" required>
                             </div>
                             <div>
                                 <label class="label">Original Price (₹)</label>
-                                <input type="number" id="p-og-price" value="${prod.original_price}" class="input-field" placeholder="0.00">
+                                <input type="number" id="p-og-price" value="${prod.original_price}" class="input-field w-full" placeholder="0.00">
                             </div>
                             <div>
                                 <label class="label">Discounted Price (₹)</label>
-                                <input type="number" id="p-disc-price" value="${prod.discounted_price}" class="input-field" placeholder="0.00">
+                                <input type="number" id="p-disc-price" value="${prod.discounted_price}" class="input-field w-full" placeholder="0.00">
                             </div>
                         </div>
                     </div>
@@ -143,7 +145,7 @@ window.openProductModal = async (productId = null) => {
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Product Image</h4>
                         <div class="flex flex-col md:flex-row gap-4 items-center">
-                            <input type="text" id="p-img-url" value="${mainImage}" placeholder="Paste Image URL here..." class="input-field flex-1">
+                            <input type="text" id="p-img-url" value="${mainImage}" placeholder="Paste Image URL here..." class="input-field flex-1 w-full">
                             <span class="text-xs font-bold text-gray-400">OR</span>
                             <label class="cursor-pointer bg-gray-100 hover:bg-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-700 transition border border-gray-300">
                                 <i data-lucide="upload" class="w-4 h-4 inline-block mr-2"></i>Upload File
@@ -152,7 +154,7 @@ window.openProductModal = async (productId = null) => {
                         </div>
                     </div>
 
-                    <!-- 3. Features (Dynamic List) -->
+                    <!-- 3. Features -->
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Features</h4>
@@ -161,12 +163,11 @@ window.openProductModal = async (productId = null) => {
                             </button>
                         </div>
                         <div id="features-container" class="space-y-3">
-                            ${features.map(f => `<input type="text" name="feature[]" value="${f.feature}" class="input-field" placeholder="e.g. Handcrafted material">`).join('')}
+                            ${features.map(f => `<input type="text" name="feature[]" value="${f.feature}" class="input-field w-full" placeholder="e.g. Handcrafted material">`).join('')}
                         </div>
-                        <p class="text-xs text-gray-400 mt-2 italic">Add bullet points describing key benefits.</p>
                     </div>
 
-                    <!-- 4. Specifications (Key-Value Pairs) -->
+                    <!-- 4. Specifications (FIXED: GRID LAYOUT) -->
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <div class="flex justify-between items-center mb-4">
                             <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Technical Specifications</h4>
@@ -176,13 +177,12 @@ window.openProductModal = async (productId = null) => {
                         </div>
                         <div id="specs-container" class="space-y-3">
                              ${specs.map(s => `
-                                <div class="flex gap-3">
-                                    <input type="text" name="spec_key[]" value="${s.spec_key}" placeholder="Key (e.g. Color)" class="input-field w-1/3 bg-gray-50 font-medium">
-                                    <input type="text" name="spec_val[]" value="${s.spec_value}" placeholder="Value (e.g. Red)" class="input-field flex-1">
+                                <div class="grid grid-cols-3 gap-4">
+                                    <input type="text" name="spec_key[]" value="${s.spec_key}" placeholder="Key (e.g. Color)" class="input-field col-span-1 bg-gray-50 font-medium">
+                                    <input type="text" name="spec_val[]" value="${s.spec_value}" placeholder="Value (e.g. Red)" class="input-field col-span-2">
                                 </div>
                             `).join('')}
                         </div>
-                        <p class="text-xs text-gray-400 mt-2 italic">Add technical details like Size, Material, Weight, etc.</p>
                     </div>
 
                     <!-- Visibility Toggle -->
@@ -193,8 +193,8 @@ window.openProductModal = async (productId = null) => {
                 </form>
             </div>
 
-            <!-- Footer Actions -->
-            <div class="p-6 border-t border-gray-200 bg-white sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <!-- Fixed Footer -->
+            <div class="p-6 border-t border-gray-200 bg-white shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 <button id="save-product-btn" class="w-full bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 shadow-lg transition-all active:scale-95 text-lg">
                     ${productId ? 'Update Product' : 'Create Product'}
                 </button>
@@ -203,28 +203,28 @@ window.openProductModal = async (productId = null) => {
         
         <style>
             .label { display: block; font-size: 0.75rem; font-weight: 700; color: #374151; margin-bottom: 0.4rem; letter-spacing: 0.025em; }
-            .input-field { width: 100%; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.9rem; transition: all 0.2s; background-color: #fff; }
+            .input-field { border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.9rem; transition: all 0.2s; background-color: #fff; }
             .input-field:focus { outline: none; border-color: #16a34a; ring: 3px solid #dcfce7; }
-            .input-field::placeholder { color: #9ca3af; }
+            .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
         </style>
     `;
     
     openModal(html);
 
-    // If creating new, add one empty row for convenience
     if(!productId) { 
         addFeatureRow(); 
         addSpecRow(); 
     }
 
-    // Save Handler
     document.getElementById('save-product-btn').addEventListener('click', async () => {
         const btn = document.getElementById('save-product-btn');
         const originalText = btn.innerText;
         btn.disabled = true; btn.innerText = 'Saving...';
 
         try {
-            // 1. Handle Image Upload
             let imgUrl = document.getElementById('p-img-url').value;
             const fileInput = document.getElementById('p-img-file');
             if(fileInput.files.length > 0) {
@@ -232,7 +232,6 @@ window.openProductModal = async (productId = null) => {
                 imgUrl = await uploadToCloudinary(fileInput.files[0]);
             }
 
-            // 2. Upsert Main Product
             const payload = {
                 store_id: document.getElementById('p-store').value,
                 name: document.getElementById('p-name').value,
@@ -252,13 +251,11 @@ window.openProductModal = async (productId = null) => {
                 pid = data.id;
             }
 
-            // 3. Update Image
             if(imgUrl) {
                 await supabase.from('product_images').delete().eq('product_id', pid);
                 await supabase.from('product_images').insert({ product_id: pid, image_url: imgUrl, sort_order: 0 });
             }
 
-            // 4. Update Features
             const featureInputs = document.getElementsByName('feature[]');
             const newFeatures = Array.from(featureInputs)
                 .map((inp, i) => ({ product_id: pid, feature: inp.value, sort_order: i }))
@@ -267,7 +264,6 @@ window.openProductModal = async (productId = null) => {
             await supabase.from('product_features').delete().eq('product_id', pid);
             if(newFeatures.length) await supabase.from('product_features').insert(newFeatures);
 
-            // 5. Update Specs
             const keys = document.getElementsByName('spec_key[]');
             const vals = document.getElementsByName('spec_val[]');
             const newSpecs = Array.from(keys)
@@ -290,23 +286,22 @@ window.openProductModal = async (productId = null) => {
     });
 };
 
-// Helper Functions attached to window for inline onclick access
 window.addFeatureRow = () => {
     const div = document.createElement('input');
     div.type = 'text'; 
     div.name = 'feature[]'; 
     div.placeholder = 'Feature description'; 
-    div.className = 'input-field mt-2 animate-fade-in';
+    div.className = 'input-field w-full mt-2';
     document.getElementById('features-container').appendChild(div);
     div.focus();
 };
 
 window.addSpecRow = () => {
     const div = document.createElement('div');
-    div.className = 'flex gap-3 mt-2 animate-fade-in';
+    div.className = 'grid grid-cols-3 gap-4 mt-2';
     div.innerHTML = `
-        <input type="text" name="spec_key[]" placeholder="Key" class="input-field w-1/3 bg-gray-50 font-medium">
-        <input type="text" name="spec_val[]" placeholder="Value" class="input-field flex-1">
+        <input type="text" name="spec_key[]" placeholder="Key" class="input-field col-span-1 bg-gray-50 font-medium">
+        <input type="text" name="spec_val[]" placeholder="Value" class="input-field col-span-2">
     `;
     document.getElementById('specs-container').appendChild(div);
     div.querySelector('input').focus();
