@@ -4,13 +4,15 @@ import { supabase } from './supabase-client.js';
 import { renderDashboard } from './admin-dashboard.js';
 import { renderUsers } from './admin-users.js';
 import { renderEvents } from './admin-events.js';
-import { renderStores } from './admin-store.js';
-import { renderProducts } from './admin-products.js';
-import { renderOrders } from './admin-orders.js';
-import { renderChallenges } from './admin-challenges.js';
+import { renderStores } from './admin-store.js';      
+import { renderProducts } from './admin-products.js'; 
+import { renderOrders } from './admin-orders.js'; 
+import { renderReviews } from './admin-reviews.js';
+import { renderChallenges } from './admin-challenges.js'; 
 import { renderLeaderboard } from './admin-leaderboard.js';
 import { renderCodes } from './admin-codes.js';
-import { renderPlasticLogs } from './admin-plastic.js'; // New Plastic Logs Module
+import { renderPlasticLogs } from './admin-plastic.js'; 
+import { renderAnalytics } from './admin-analytics.js'; // <--- ADD THIS
 
 // Global Auth Check
 const checkAdminAuth = async () => {
@@ -22,7 +24,7 @@ const checkAdminAuth = async () => {
         return;
     }
     
-    // 2. Verify Role (Checks auth_user_id against public.users)
+    // 2. Verify Role (Fix: Check auth_user_id instead of id)
     const { data: user, error } = await supabase
         .from('users')
         .select('role, full_name')
@@ -40,8 +42,6 @@ const checkAdminAuth = async () => {
     // 4. Success - Load Dashboard
     const nameEl = document.getElementById('admin-name');
     if(nameEl) nameEl.textContent = user.full_name;
-    
-    // Load default view
     loadView('dashboard');
 };
 
@@ -57,6 +57,7 @@ window.loadView = (view) => {
 
     // Update Navigation Styling
     document.querySelectorAll('.nav-btn').forEach(btn => {
+        // Check if the button's onclick attribute contains the current view name
         if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${view}'`)) {
             btn.classList.add('bg-gray-800', 'text-white');
             btn.classList.remove('text-gray-300');
@@ -74,14 +75,20 @@ window.loadView = (view) => {
                 renderDashboard(container); 
                 break;
             
+            // NEW ANALYTICS CASE
+            case 'analytics': 
+                if(title) title.textContent = 'System Analytics'; 
+                renderAnalytics(container); 
+                break;
+
             case 'users': 
                 if(title) title.textContent = 'User Management'; 
                 renderUsers(container); 
                 break;
             
-            case 'plastic': 
-                if(title) title.textContent = 'Plastic Recycling Logs'; 
-                renderPlasticLogs(container); 
+            case 'reviews': 
+                if(title) title.textContent = 'Review Center'; 
+                renderReviews(container); 
                 break;
             
             case 'events': 
@@ -118,11 +125,15 @@ window.loadView = (view) => {
                 if(title) title.textContent = 'Global Leaderboard'; 
                 renderLeaderboard(container); 
                 break;
+
+            case 'plastic': 
+                if(title) title.textContent = 'Plastic Recycling Logs'; 
+                renderPlasticLogs(container); 
+                break;
                 
             default: 
                 renderDashboard(container);
         }
-        
         // Re-initialize icons after DOM update
         if(window.lucide) window.lucide.createIcons();
     }, 100); 
