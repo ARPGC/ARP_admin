@@ -10,6 +10,7 @@ const KPI_CARDS = [
 
 let activitySubscription = null;
 let charts = {};
+let allLogsCache = []; // Store fetched logs to avoid re-fetching on filter change
 
 // =======================
 // 1. RENDER ANALYTICS PAGE
@@ -37,7 +38,15 @@ export const renderAnalytics = async (container) => {
                 <!-- Traffic Graph -->
                 <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-lg font-bold text-gray-800">Activity Volume (Last 7 Days)</h3>
+                        <h3 class="text-lg font-bold text-gray-800">Activity Volume</h3>
+                        <select id="chart-filter" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 focus:ring-2 focus:ring-green-500 focus:outline-none transition-all">
+                            <option value="1">Today</option>
+                            <option value="7" selected>Last 7 Days</option>
+                            <option value="30">Last 30 Days</option>
+                            <option value="90">Last 3 Months</option>
+                            <option value="180">Last 6 Months</option>
+                            <option value="365">Last 1 Year</option>
+                        </select>
                     </div>
                     <div class="h-64 w-full">
                         <canvas id="trafficChart"></canvas>
@@ -56,19 +65,41 @@ export const renderAnalytics = async (container) => {
 
             <!-- Live Timeline Feed -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[600px]">
-                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-800">Live Activity Feed</h3>
-                        <p class="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                            Realtime updates enabled
-                        </p>
+                <div class="p-6 border-b border-gray-100 flex flex-col space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">Live Activity Feed</h3>
+                            <p class="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                Realtime updates enabled
+                            </p>
+                        </div>
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="text" id="feed-search" placeholder="Search logs..." class="pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none w-64 transition-all">
+                        </div>
                     </div>
-                    <div class="relative">
-                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                        <input type="text" id="feed-search" placeholder="Search logs..." class="pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none w-64">
+                    
+                    <!-- Timeline Filter Controls -->
+                    <div class="flex flex-wrap gap-3 items-center text-sm bg-gray-50 p-3 rounded-xl">
+                        <span class="font-bold text-gray-500 text-xs uppercase tracking-wide">Filter Period:</span>
+                        
+                        <div class="flex items-center gap-2">
+                            <input type="datetime-local" id="feed-start-date" class="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            <span class="text-gray-400 text-xs">to</span>
+                            <input type="datetime-local" id="feed-end-date" class="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                        </div>
+
+                        <button id="apply-feed-filter" class="bg-gray-900 text-white px-3 py-1 rounded-lg text-xs font-bold hover:bg-black transition-colors shadow-sm">
+                            Apply Filter
+                        </button>
+                        
+                        <button id="reset-feed-filter" class="text-gray-500 hover:text-gray-700 text-xs font-medium underline decoration-dotted">
+                            Reset (Last 100)
+                        </button>
                     </div>
                 </div>
+
                 <div id="activity-timeline" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar relative">
                     <div class="flex justify-center items-center h-full text-gray-400">
                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300"></div>
@@ -80,16 +111,26 @@ export const renderAnalytics = async (container) => {
     
     if(window.lucide) window.lucide.createIcons();
 
-    await fetchAndRenderData();
+    // Initial Fetch (Last 100 default for timeline, but fetch more for charts)
+    await fetchAndRenderData(); 
     setupRealtimeSubscription();
     
+    // Chart Filter Event Listener
+    document.getElementById('chart-filter').addEventListener('change', (e) => {
+        updateTrafficChart(parseInt(e.target.value));
+    });
+
+    // Timeline Filter Event Listeners
+    document.getElementById('apply-feed-filter').addEventListener('click', applyTimelineDateFilter);
+    document.getElementById('reset-feed-filter').addEventListener('click', resetTimelineFilter);
+
     // Search Debounce
     let timeout = null;
     const searchInput = document.getElementById('feed-search');
     if(searchInput) {
         searchInput.addEventListener('input', (e) => {
             clearTimeout(timeout);
-            timeout = setTimeout(() => filterTimeline(e.target.value), 300);
+            timeout = setTimeout(() => filterTimelineText(e.target.value), 300);
         });
     }
 };
@@ -98,21 +139,27 @@ export const renderAnalytics = async (container) => {
 // 2. DATA FETCHING & PROCESSING
 // =======================
 const fetchAndRenderData = async () => {
-    // FIX: Explicitly use users!user_id to resolve ambiguous relationship
+    // Fetch a larger dataset (no limit for charts, but practically let's grab a good chunk)
+    // For a real production app with millions of rows, you'd use aggregate queries.
+    // Here we fetch recent 2000 rows for chart accuracy.
     const { data: logs, error } = await supabase
         .from('user_activity_log')
         .select('*, users!user_id(full_name, role)') 
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(2000); 
 
     if (error) {
         console.error('Error fetching analytics:', error);
         return;
     }
 
+    allLogsCache = logs; // Store for filtering
+
     updateKPIs(logs);
-    renderCharts(logs);
-    renderTimeline(logs);
+    renderInitialCharts(logs);
+    
+    // Default Timeline: Show last 100
+    renderTimeline(logs.slice(0, 100)); 
 };
 
 const updateKPIs = (logs) => {
@@ -128,7 +175,7 @@ const updateKPIs = (logs) => {
         if(el) el.innerText = val;
     };
 
-    setVal('kpi-active-users', activeToday || '-'); // Fallback if 0 to show activity exists
+    setVal('kpi-active-users', activeToday || '-'); 
     setVal('kpi-total-purchases', purchases);
     setVal('kpi-points-redeemed', redeemed);
     setVal('kpi-error-rate', errors > 0 ? `${((errors/logs.length)*100).toFixed(1)}%` : '0%');
@@ -137,8 +184,12 @@ const updateKPIs = (logs) => {
 // =======================
 // 3. CHART RENDERING
 // =======================
-const renderCharts = (logs) => {
-    if (charts.traffic) charts.traffic.destroy();
+const renderInitialCharts = (logs) => {
+    renderDistributionChart(logs);
+    updateTrafficChart(7); // Default view
+};
+
+const renderDistributionChart = (logs) => {
     if (charts.distribution) charts.distribution.destroy();
 
     const categories = { Engagement: 0, Commerce: 0, Gamification: 0, Issues: 0 };
@@ -151,52 +202,6 @@ const renderCharts = (logs) => {
         else categories.Engagement++; 
     });
 
-    const last7Days = [...Array(7)].map((_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toISOString().split('T')[0];
-    }).reverse();
-
-    const trafficData = last7Days.map(date => logs.filter(l => l.created_at.startsWith(date)).length);
-
-    // Traffic Chart
-    const trafficEl = document.getElementById('trafficChart');
-    if(trafficEl) {
-        const ctxTraffic = trafficEl.getContext('2d');
-        charts.traffic = new Chart(ctxTraffic, {
-            type: 'line',
-            data: {
-                labels: last7Days.map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short' })),
-                datasets: [{
-                    label: 'Activities',
-                    data: trafficData,
-                    borderColor: '#16a34a',
-                    backgroundColor: (context) => {
-                        const ctx = context.chart.ctx;
-                        const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-                        gradient.addColorStop(0, 'rgba(22, 163, 74, 0.2)');
-                        gradient.addColorStop(1, 'rgba(22, 163, 74, 0)');
-                        return gradient;
-                    },
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-    }
-
-    // Distribution Chart
     const distEl = document.getElementById('distributionChart');
     if(distEl) {
         const ctxDist = distEl.getContext('2d');
@@ -234,17 +239,158 @@ const renderCharts = (logs) => {
     }
 };
 
+const updateTrafficChart = (days) => {
+    if (charts.traffic) charts.traffic.destroy();
+
+    const today = new Date();
+    const labels = [];
+    const dataPoints = [];
+
+    // Case 1: "Today" (Hourly breakdown)
+    if (days === 1) {
+        for (let i = 0; i < 24; i++) {
+            labels.push(`${i}:00`);
+            const count = allLogsCache.filter(l => {
+                const d = new Date(l.created_at);
+                return d.getDate() === today.getDate() && 
+                       d.getMonth() === today.getMonth() &&
+                       d.getFullYear() === today.getFullYear() &&
+                       d.getHours() === i;
+            }).length;
+            dataPoints.push(count);
+        }
+    } 
+    // Case 2: Date Range (Daily breakdown)
+    else {
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(today.getDate() - i);
+            const dateString = d.toISOString().split('T')[0]; 
+            
+            // Simplified Label logic
+            if (days > 90) {
+                // For very long ranges, we might want to skip labels visually but keep points
+                // Or group by week/month. For this MVP, we plot daily points but reduce label clutter via ChartJS options
+                labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            } else {
+                labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            }
+
+            const count = allLogsCache.filter(l => l.created_at.startsWith(dateString)).length;
+            dataPoints.push(count);
+        }
+    }
+
+    const trafficEl = document.getElementById('trafficChart');
+    if(trafficEl) {
+        const ctxTraffic = trafficEl.getContext('2d');
+        charts.traffic = new Chart(ctxTraffic, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Activities',
+                    data: dataPoints,
+                    borderColor: '#16a34a',
+                    backgroundColor: (context) => {
+                        const ctx = context.chart.ctx;
+                        const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+                        gradient.addColorStop(0, 'rgba(22, 163, 74, 0.2)');
+                        gradient.addColorStop(1, 'rgba(22, 163, 74, 0)');
+                        return gradient;
+                    },
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: days > 30 ? 1 : 4, 
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                    x: { 
+                        grid: { display: false },
+                        ticks: {
+                            maxTicksLimit: days > 30 ? 12 : 7 
+                        }
+                    }
+                }
+            }
+        });
+    }
+};
+
 // =======================
-// 4. TIMELINE RENDERER
+// 4. TIMELINE & FILTERS
 // =======================
+
+// Apply Date Range Filter to Timeline
+const applyTimelineDateFilter = async () => {
+    const startVal = document.getElementById('feed-start-date').value;
+    const endVal = document.getElementById('feed-end-date').value;
+
+    if (!startVal || !endVal) {
+        alert("Please select both start and end dates.");
+        return;
+    }
+
+    const startDate = new Date(startVal);
+    const endDate = new Date(endVal);
+
+    if (startDate > endDate) {
+        alert("Start date cannot be after end date.");
+        return;
+    }
+
+    // Fetch specific range from DB
+    // Note: We fetch specifically for the timeline here, ignoring the global cache limit
+    const { data: filteredLogs, error } = await supabase
+        .from('user_activity_log')
+        .select('*, users!user_id(full_name, role)')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .order('created_at', { ascending: false }); // No limit here, user asked for "all data" in range
+
+    if (error) {
+        console.error(error);
+        alert("Error fetching filtered logs.");
+        return;
+    }
+
+    renderTimeline(filteredLogs);
+    
+    // Visual feedback
+    const btn = document.getElementById('apply-feed-filter');
+    const originalText = btn.innerText;
+    btn.innerText = `Showing ${filteredLogs.length} logs`;
+    btn.classList.remove('bg-gray-900');
+    btn.classList.add('bg-green-600');
+    
+    setTimeout(() => {
+        btn.innerText = originalText;
+        btn.classList.add('bg-gray-900');
+        btn.classList.remove('bg-green-600');
+    }, 2000);
+};
+
+const resetTimelineFilter = () => {
+    document.getElementById('feed-start-date').value = '';
+    document.getElementById('feed-end-date').value = '';
+    // Reset to default cache slice
+    renderTimeline(allLogsCache.slice(0, 100));
+};
+
 const renderTimeline = (logs) => {
     const container = document.getElementById('activity-timeline');
     if(!container) return;
     
     container.innerHTML = '';
 
-    if (logs.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-400 py-10">No activity logs found.</div>`;
+    if (!logs || logs.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-400 py-10">No activity logs found in this period.</div>`;
         return;
     }
 
@@ -329,7 +475,6 @@ const setupRealtimeSubscription = () => {
     activitySubscription = supabase
         .channel('admin-analytics')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_activity_log' }, async (payload) => {
-            // Use the same explicit relationship for realtime fetching
             const { data: fullLog } = await supabase
                 .from('user_activity_log')
                 .select('*, users!user_id(full_name, role)')
@@ -337,6 +482,7 @@ const setupRealtimeSubscription = () => {
                 .single();
             
             if (fullLog) {
+                // Only refresh default views, complex filter refreshes are manual to avoid UI jumps
                 fetchAndRenderData(); 
                 showToast(`New Activity: ${fullLog.action_type}`, 'info');
             }
@@ -356,7 +502,7 @@ const showToast = (msg, type) => {
     }, 3000);
 };
 
-const filterTimeline = (term) => {
+const filterTimelineText = (term) => {
     const items = document.querySelectorAll('.timeline-item');
     term = term.toLowerCase();
     items.forEach(item => {
