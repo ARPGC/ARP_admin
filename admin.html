@@ -37,11 +37,21 @@
         .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #e2e8f0; }
 
         /* FIX: Ensure Modals Scroll Correctly */
+        /* NOTE: Removed display:flex to prevent overriding the 'hidden' class */
         #modal-overlay {
-            display: flex; /* Centering context */
+            /* display: flex;  <-- REMOVED THIS to fix the blurred screen issue */
+            /* align-items: center; <-- REMOVED THIS */
+            /* justify-content: center; <-- REMOVED THIS */
+            
+            /* Only keep overflow rules needed for scrolling */
+            overflow-y: auto; 
+        }
+
+        /* Ensure content centers properly when visible */
+        #modal-overlay:not(.hidden) {
+            display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden; /* Prevent background scrolling */
         }
 
         #modal-content {
@@ -50,7 +60,7 @@
             max-width: 64rem; /* Wider modal for tables */
             display: flex;
             flex-direction: column;
-            margin: auto;
+            margin: 2rem auto; /* Margin for scrolling spacing */
             overflow: hidden; /* Internal scrolling handled by children */
         }
         
@@ -169,7 +179,7 @@
     </main>
 
     <!-- Global Modal Container -->
-    <div id="modal-overlay" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+    <div id="modal-overlay" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm">
         <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all scale-95 opacity-0">
             <!-- Modal content injected here -->
         </div>
