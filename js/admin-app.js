@@ -1,6 +1,6 @@
 import { supabase } from './supabase-client.js';
 
-// Import only necessary renderers
+// Import renderers
 import { renderDashboard } from './admin-dashboard.js';
 import { renderEvents } from './admin-events.js';
 import { renderStores } from './admin-store.js';      
@@ -66,42 +66,34 @@ window.loadView = (view) => {
                 if(title) title.textContent = 'Overview'; 
                 renderDashboard(container); 
                 break;
-            
             case 'events': 
                 if(title) title.textContent = 'Event Management'; 
                 renderEvents(container); 
                 break;
-            
             case 'stores': 
                 if(title) title.textContent = 'Manage Stores'; 
                 renderStores(container); 
                 break;
-            
             case 'products': 
                 if(title) title.textContent = 'Product Inventory'; 
                 renderProducts(container); 
                 break;
-            
             case 'orders': 
                 if(title) title.textContent = 'Order Management'; 
                 renderOrders(container); 
                 break;
-            
             case 'challenges': 
                 if(title) title.textContent = 'Challenges & Quizzes'; 
                 renderChallenges(container); 
                 break;
-            
             case 'codes': 
                 if(title) title.textContent = 'Redeem Codes'; 
                 renderCodes(container); 
                 break;
-
             case 'plastic': 
                 if(title) title.textContent = 'Plastic Recycling Logs'; 
                 renderPlasticLogs(container); 
                 break;
-                
             default: 
                 renderDashboard(container);
         }
