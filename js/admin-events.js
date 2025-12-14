@@ -1,19 +1,14 @@
 import { supabase } from './supabase-client.js';
 
-// =======================
-// 1. RENDER EVENTS LIST
-// =======================
 export const renderEvents = async (container) => {
-    console.log("Rendering Events List...");
-    
+    // OPTIMIZATION: Do not fetch 'description' for the list view
     const { data: events, error } = await supabase
         .from('events')
-        .select('*, event_attendance(count)')
+        .select('id, title, start_at, end_at, points_reward, poster_url, event_attendance(count)')
         .order('start_at', { ascending: false });
 
     if (error) {
         console.error('Error loading events:', error);
-        container.innerHTML = `<p class="text-red-500 p-4">Error loading events. Check console.</p>`;
         return;
     }
 
@@ -32,20 +27,13 @@ export const renderEvents = async (container) => {
                     ? '<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">Completed</span>'
                     : '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Upcoming</span>';
 
-                // FIX: Ultra-safe count access to prevent "null reading length" error
                 let rsvpCount = 0;
-                if (e.event_attendance) {
-                    if (Array.isArray(e.event_attendance)) {
-                        if (e.event_attendance.length > 0) rsvpCount = e.event_attendance[0].count;
-                    } else if (typeof e.event_attendance === 'object') {
-                        rsvpCount = e.event_attendance.count || 0;
-                    }
-                }
+                if (e.event_attendance && e.event_attendance.length > 0) rsvpCount = e.event_attendance[0].count;
 
                 return `
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden hover:shadow-md transition">
                     <div class="h-32 bg-gray-100 relative">
-                        <img src="${e.poster_url || 'https://placehold.co/600x400?text=Event'}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/600x400?text=No+Image'">
+                        <img src="${e.poster_url || 'https://placehold.co/600x400?text=Event'}" class="w-full h-full object-cover">
                         <div class="absolute top-3 right-3 bg-white/90 px-2 py-1 rounded-md text-xs font-bold shadow-sm">
                             +${e.points_reward} pts
                         </div>
@@ -58,8 +46,6 @@ export const renderEvents = async (container) => {
                             ${statusBadge}
                         </div>
                         <h4 class="font-bold text-lg text-gray-900 mb-1 line-clamp-1" title="${e.title}">${e.title}</h4>
-                        <p class="text-xs text-gray-500 mb-4 line-clamp-2">${e.description || 'No description'}</p>
-                        
                         <div class="mt-auto flex items-center justify-between pt-4 border-t border-gray-100">
                             <div class="text-xs text-gray-500">
                                 <strong class="text-gray-800 text-sm">${rsvpCount}</strong> RSVPs
@@ -82,14 +68,8 @@ export const renderEvents = async (container) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// =======================
-// 2. CREATE / EDIT MODAL
-// =======================
 window.openEventModal = async (eventId = null) => {
-    let evt = { 
-        title: '', description: '', location: '', points_reward: 50, 
-        start_at: '', end_at: '', poster_url: '', organizer: 'Green Club' 
-    };
+    let evt = { title: '', description: '', location: '', points_reward: 50, start_at: '', end_at: '', poster_url: '', organizer: 'Green Club' };
 
     if (eventId) {
         const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -107,54 +87,23 @@ window.openEventModal = async (eventId = null) => {
                 <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
             </div>
             <form id="event-form" class="space-y-4 flex-grow overflow-y-auto p-1">
-                <div>
-                    <label class="label">Event Title</label>
-                    <input type="text" id="e-title" value="${evt.title}" class="input-field" required>
-                </div>
-                <div>
-                    <label class="label">Description</label>
-                    <textarea id="e-desc" class="input-field" rows="3">${evt.description || ''}</textarea>
+                <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Event Title</label><input type="text" id="e-title" value="${evt.title}" class="w-full p-2 border rounded" required></div>
+                <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Description</label><textarea id="e-desc" class="w-full p-2 border rounded" rows="3">${evt.description || ''}</textarea></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Start Time</label><input type="datetime-local" id="e-start" value="${evt.start_at || ''}" class="w-full p-2 border rounded" required></div>
+                    <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">End Time</label><input type="datetime-local" id="e-end" value="${evt.end_at || ''}" class="w-full p-2 border rounded" required></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="label">Start Time</label>
-                        <input type="datetime-local" id="e-start" value="${evt.start_at || ''}" class="input-field" required>
-                    </div>
-                    <div>
-                        <label class="label">End Time</label>
-                        <input type="datetime-local" id="e-end" value="${evt.end_at || ''}" class="input-field" required>
-                    </div>
+                    <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Location</label><input type="text" id="e-location" value="${evt.location}" class="w-full p-2 border rounded" required></div>
+                    <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Points Reward</label><input type="number" id="e-points" value="${evt.points_reward}" class="w-full p-2 border rounded font-bold text-green-600" required></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="label">Location</label>
-                        <input type="text" id="e-location" value="${evt.location}" class="input-field" required>
-                    </div>
-                    <div>
-                        <label class="label">Points Reward</label>
-                        <input type="number" id="e-points" value="${evt.points_reward}" class="input-field font-bold text-green-600" required>
-                    </div>
+                    <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Organizer</label><input type="text" id="e-organizer" value="${evt.organizer}" class="w-full p-2 border rounded"></div>
+                    <div><label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Poster URL</label><input type="text" id="e-poster" value="${evt.poster_url || ''}" class="w-full p-2 border rounded"></div>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="label">Organizer</label>
-                        <input type="text" id="e-organizer" value="${evt.organizer}" class="input-field">
-                    </div>
-                    <div>
-                        <label class="label">Poster URL</label>
-                        <input type="text" id="e-poster" value="${evt.poster_url || ''}" class="input-field" placeholder="https://...">
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 mt-4">
-                    ${eventId ? 'Update Event' : 'Create Event'}
-                </button>
+                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 mt-4">${eventId ? 'Update Event' : 'Create Event'}</button>
             </form>
         </div>
-        <style>
-            .label { display: block; font-size: 0.75rem; font-weight: 700; color: #374151; margin-bottom: 4px; uppercase; }
-            .input-field { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; }
-        </style>
     `;
     openModal(html);
 
@@ -180,23 +129,9 @@ window.openEventModal = async (eventId = null) => {
     });
 };
 
-// =======================
-// 3. ATTENDANCE & RSVP MANAGER
-// =======================
 window.openAttendance = async (eventId) => {
-    console.log("Opening Attendance for:", eventId);
-    
-    const { data: event, error: evError } = await supabase.from('events').select('*').eq('id', eventId).single();
-    if (evError) { console.error("Event fetch error:", evError); return; }
-
-    // Fetch Attendees (using users!user_id to fix ambiguity)
-    const { data: attendees, error: attError } = await supabase
-        .from('event_attendance')
-        .select('*, users!user_id(full_name, student_id, course)')
-        .eq('event_id', eventId);
-
-    if (attError) { console.error("Attendance fetch error:", attError); return; }
-
+    const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
+    const { data: attendees } = await supabase.from('event_attendance').select('*, users!user_id(full_name, student_id, course)').eq('event_id', eventId);
     const safeAttendees = attendees || [];
     const isEventCompleted = new Date(event.end_at) < new Date();
 
@@ -204,67 +139,29 @@ window.openAttendance = async (eventId) => {
         <div class="flex flex-col h-full bg-gray-50">
             <div class="p-6 border-b bg-white sticky top-0 z-10 shadow-sm">
                 <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-900">${event.title}</h3>
-                        <p class="text-xs text-gray-500 mt-1">${new Date(event.start_at).toLocaleString()}</p>
-                    </div>
+                    <div><h3 class="text-xl font-bold text-gray-900">${event.title}</h3><p class="text-xs text-gray-500 mt-1">${new Date(event.start_at).toLocaleString()}</p></div>
                     <button onclick="closeModal()" class="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><i data-lucide="x" class="w-5 h-5"></i></button>
                 </div>
-                
                 <div class="flex justify-between items-center">
-                    <div class="flex gap-4 text-sm">
-                        <div><strong>${safeAttendees.length}</strong> Registered</div>
-                        <div><strong>${safeAttendees.filter(a => a.status === 'confirmed').length}</strong> Present</div>
-                    </div>
-                    <button onclick="downloadAttendancePDF('${eventId}')" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black flex items-center gap-2 transition">
-                        <i data-lucide="file-down" class="w-4 h-4"></i> Download PDF
-                    </button>
+                    <div class="flex gap-4 text-sm"><div><strong>${safeAttendees.length}</strong> Registered</div><div><strong>${safeAttendees.filter(a => a.status === 'confirmed').length}</strong> Present</div></div>
+                    <button onclick="downloadAttendancePDF('${eventId}')" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black flex items-center gap-2 transition"><i data-lucide="file-down" class="w-4 h-4"></i> Download PDF</button>
                 </div>
-                
-                ${!isEventCompleted ? `
-                    <div class="mt-3 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded-lg text-xs flex items-center">
-                        <i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i>
-                        Attendance can only be marked after the event ends (${new Date(event.end_at).toLocaleTimeString()}).
-                    </div>
-                ` : ''}
+                ${!isEventCompleted ? `<div class="mt-3 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded-lg text-xs flex items-center"><i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i>Attendance can only be marked after the event ends.</div>` : ''}
             </div>
-
             <div class="p-0 flex-grow overflow-y-auto">
                 <table class="w-full text-sm text-left">
-                    <thead class="bg-gray-100 text-gray-500 font-bold uppercase text-xs border-b">
-                        <tr>
-                            <th class="p-4">Student</th>
-                            <th class="p-4">Course</th>
-                            <th class="p-4">Status</th>
-                            <th class="p-4 text-right">Action</th>
-                        </tr>
-                    </thead>
+                    <thead class="bg-gray-100 text-gray-500 font-bold uppercase text-xs border-b"><tr><th class="p-4">Student</th><th class="p-4">Course</th><th class="p-4">Status</th><th class="p-4 text-right">Action</th></tr></thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
                         ${safeAttendees.map(a => `
                             <tr>
-                                <td class="p-4">
-                                    <div class="font-bold text-gray-900">${a.users?.full_name || 'Unknown'}</div>
-                                    <div class="text-xs text-gray-500">${a.users?.student_id || 'N/A'}</div>
-                                </td>
+                                <td class="p-4"><div class="font-bold text-gray-900">${a.users?.full_name || 'Unknown'}</div><div class="text-xs text-gray-500">${a.users?.student_id || 'N/A'}</div></td>
                                 <td class="p-4 text-gray-600">${a.users?.course || '-'}</td>
-                                <td class="p-4">
-                                    <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                                        a.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                        a.status === 'absent' ? 'bg-red-100 text-red-700' :
-                                        'bg-blue-100 text-blue-700'
-                                    }">${a.status}</span>
-                                </td>
+                                <td class="p-4"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${a.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${a.status}</span></td>
                                 <td class="p-4 text-right">
-                                    ${a.status === 'confirmed' 
-                                        ? `<span class="text-green-600 font-bold text-xs flex items-center justify-end gap-1"><i data-lucide="check" class="w-3 h-3"></i> Awarded</span>` 
-                                        : `<button onclick="markPresent(this, '${a.id}', '${eventId}', ${isEventCompleted})" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed" ${!isEventCompleted ? 'disabled' : ''}>
-                                            Mark Present
-                                           </button>`
-                                    }
+                                    ${a.status === 'confirmed' ? `<span class="text-green-600 font-bold text-xs flex items-center justify-end gap-1"><i data-lucide="check" class="w-3 h-3"></i> Awarded</span>` : `<button onclick="markPresent(this, '${a.id}', '${eventId}', ${isEventCompleted})" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 disabled:opacity-50" ${!isEventCompleted ? 'disabled' : ''}>Mark Present</button>`}
                                 </td>
                             </tr>
                         `).join('')}
-                        ${safeAttendees.length === 0 ? '<tr><td colspan="4" class="p-6 text-center text-gray-500">No RSVPs yet.</td></tr>' : ''}
                     </tbody>
                 </table>
             </div>
@@ -273,141 +170,27 @@ window.openAttendance = async (eventId) => {
     openModal(html);
 };
 
-// =======================
-// 4. MARK PRESENT (Logic) - DEBUG VERSION
-// =======================
-window.markPresent = async (btnElement, rowId, eventId, isCompleted) => {
-    console.log("Mark Present Triggered", { rowId, eventId, isCompleted });
-
-    if (!isCompleted) {
-        alert("You cannot mark attendance before the event is completed.");
-        return;
-    }
-
-    if (!confirm("Mark user as present? This will award points and CANNOT be undone.")) {
-        console.log("User cancelled.");
-        return;
-    }
-
-    // Provide immediate feedback
-    if (btnElement) {
-        btnElement.innerText = "Processing...";
-        btnElement.disabled = true;
-    }
-
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-            console.error("No logged in user found.");
-            throw new Error("You are not logged in.");
-        }
-
-        // Get Admin ID from public.users
-        const { data: admin, error: adminError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('auth_user_id', user.id)
-            .single();
-
-        if (adminError || !admin) {
-            console.error("Admin profile fetch error:", adminError);
-            throw new Error("Admin profile not found.");
-        }
-
-        console.log("Updating attendance status...");
-
-        // Update Status - Trigger awards points
-        const { error } = await supabase
-            .from('event_attendance')
-            .update({ 
-                status: 'confirmed',
-                admin_id: admin.id 
-            })
-            .eq('id', rowId);
-
-        if (error) {
-            console.error("Update failed:", error);
-            throw error;
-        }
-
-        console.log("Update successful. Refreshing modal...");
-        await openAttendance(eventId);
-
-    } catch (err) {
-        console.error("Mark Present Error:", err);
-        alert('Error: ' + err.message);
-        
-        // Reset button on failure
-        if (btnElement) {
-            btnElement.innerText = "Mark Present";
-            btnElement.disabled = false;
-        }
-    }
+window.markPresent = async (btn, rowId, eventId, isCompleted) => {
+    if (!isCompleted || !confirm("Mark present and award points?")) return;
+    btn.disabled = true; btn.innerText = "Processing...";
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: admin } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
+    
+    await supabase.from('event_attendance').update({ status: 'confirmed', admin_id: admin.id }).eq('id', rowId);
+    openAttendance(eventId);
 };
 
-// =======================
-// 5. GENERATE PDF
-// =======================
 window.downloadAttendancePDF = async (eventId) => {
     const { jsPDF } = window.jspdf;
-    
     const { data: event } = await supabase.from('events').select('*').eq('id', eventId).single();
-    const { data: attendees } = await supabase
-        .from('event_attendance')
-        .select('status, users!user_id(full_name, student_id, course, email)')
-        .eq('event_id', eventId)
-        .order('status', { ascending: true });
-
+    const { data: attendees } = await supabase.from('event_attendance').select('status, users!user_id(full_name, student_id, course)').eq('event_id', eventId);
+    
     const doc = new jsPDF();
-
-    doc.setFillColor(22, 163, 74);
-    doc.rect(0, 0, 210, 40, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text("Event Attendance Report", 14, 20);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("EcoCampus Admin Panel", 14, 28);
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text(event.title, 14, 55);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Date: ${new Date(event.start_at).toLocaleString()}`, 14, 62);
-    doc.text(`Location: ${event.location}`, 14, 68);
-    doc.text(`Total RSVPs: ${attendees.length}`, 14, 74);
-
-    const tableData = attendees.map(a => [
-        a.users?.student_id || 'N/A',
-        a.users?.full_name || 'Unknown',
-        a.users?.course || '-',
-        a.status.toUpperCase()
-    ]);
-
+    doc.text(`Attendance: ${event.title}`, 14, 20);
     doc.autoTable({
-        startY: 80,
-        head: [['Student ID', 'Name', 'Course', 'Status']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: { fillColor: [22, 163, 74] },
-        styles: { fontSize: 9, cellPadding: 3 },
-        alternateRowStyles: { fillColor: [240, 253, 244] }
+        startY: 30,
+        head: [['ID', 'Name', 'Course', 'Status']],
+        body: attendees.map(a => [a.users?.student_id, a.users?.full_name, a.users?.course, a.status.toUpperCase()])
     });
-
-    const pageCount = doc.internal.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Generated on ${new Date().toLocaleDateString()} - Page ${i} of ${pageCount}`, 14, 290);
-    }
-
-    doc.save(`Attendance_${event.title.substring(0, 15).replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Attendance_${event.title}.pdf`);
 };
