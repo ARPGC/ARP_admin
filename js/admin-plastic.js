@@ -11,7 +11,7 @@ export const renderPlasticLogs = async (container) => {
         .from('plastic_submissions')
         .select('id, weight_kg, plastic_type, status, created_at, image_url, users!user_id(full_name, student_id)')
         .order('created_at', { ascending: false })
-        .limit(50); // <--- HARD LIMIT TO SAVE DATA
+        .limit(50); // <--- HARD LIMIT
 
     if (error) console.error('Error fetching plastic logs:', error);
 
@@ -86,8 +86,148 @@ export const renderPlasticLogs = async (container) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// ... keep openLogModal, verifyLog, and rejectLog EXACTLY as they were in previous code ...
-// (I am omitting them here to save space, but you must keep them in the file)
-window.openLogModal = async () => { /* ... keep existing code ... */ }; 
-window.verifyLog = async (id, w, t) => { /* ... keep existing code ... */ };
-window.rejectLog = async (id) => { /* ... keep existing code ... */ };
+window.openLogModal = async () => {
+    const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name');
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
+
+    const html = `
+        <div class="p-6 h-full flex flex-col relative">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">Log Plastic Waste</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            
+            <form id="plastic-form" class="space-y-5 flex-grow overflow-y-auto p-1">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Select Student</label>
+                    <select id="pl-user" class="w-full p-2 border border-gray-300 rounded-lg" required>
+                        <option value="">-- Select User --</option>
+                        <option value="${adminUser?.id}" class="font-bold bg-gray-100">★ Record for Myself (Admin)</option>
+                        ${users.map(u => `<option value="${u.id}">${u.full_name} (${u.student_id})</option>`).join('')}
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Weight (kg)</label>
+                        <input type="number" id="pl-weight" step="0.01" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="0.00" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Plastic Type</label>
+                        <select id="pl-type" class="w-full p-2 border border-gray-300 rounded-lg" required>
+                            ${Object.keys(PLASTIC_TYPES).map(t => `<option value="${t}">${t}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 grid grid-cols-2 gap-4 text-center">
+                    <div>
+                        <p class="text-xs text-blue-600 uppercase font-bold">Points</p>
+                        <p class="text-2xl font-bold text-blue-800" id="calc-points">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-blue-600 uppercase font-bold">CO₂ Saved</p>
+                        <p class="text-2xl font-bold text-green-700" id="calc-co2">0.00 kg</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Proof (Optional)</label>
+                    <input type="file" id="pl-file" class="w-full p-2 border border-gray-300 rounded-lg text-sm" accept="image/*">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Location</label>
+                    <input type="text" id="pl-location" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="e.g. Canteen">
+                </div>
+
+                <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-100">
+                    <input type="checkbox" id="pl-verify" class="w-5 h-5 text-green-600 rounded cursor-pointer">
+                    <div>
+                        <label for="pl-verify" class="font-bold text-green-800 text-sm cursor-pointer">Verify Immediately</label>
+                        <p class="text-xs text-green-600">Check this if you have verified the waste.</p>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 shadow-md mt-4">Submit Log</button>
+            </form>
+        </div>
+    `;
+    openModal(html);
+
+    const weightInput = document.getElementById('pl-weight');
+    const typeInput = document.getElementById('pl-type');
+    
+    const updateCalc = () => {
+        const w = parseFloat(weightInput.value) || 0;
+        const type = typeInput.value;
+        const co2Rate = PLASTIC_TYPES[type] || 0.75;
+        document.getElementById('calc-points').textContent = Math.ceil(w * 100);
+        document.getElementById('calc-co2').textContent = (w * co2Rate).toFixed(2) + ' kg';
+    };
+
+    weightInput.addEventListener('input', updateCalc);
+    typeInput.addEventListener('change', updateCalc);
+
+    document.getElementById('plastic-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.innerText = 'Submitting...';
+
+        try {
+            let imageUrl = null;
+            const fileInput = document.getElementById('pl-file');
+            if (fileInput.files.length > 0) {
+                btn.innerText = 'Uploading Image...';
+                imageUrl = await uploadToCloudinary(fileInput.files[0]);
+            }
+
+            const isAutoVerify = document.getElementById('pl-verify').checked;
+            const userId = document.getElementById('pl-user').value;
+
+            const payload = {
+                user_id: userId,
+                weight_kg: parseFloat(document.getElementById('pl-weight').value),
+                plastic_type: document.getElementById('pl-type').value,
+                location: document.getElementById('pl-location').value,
+                submission_url: imageUrl,
+                status: isAutoVerify ? 'verified' : 'pending',
+                verified_by: isAutoVerify ? adminUser?.id : null,
+                verified_at: isAutoVerify ? new Date().toISOString() : null,
+                created_by: adminUser?.id
+            };
+
+            const { error } = await supabase.from('plastic_submissions').insert(payload);
+            if (error) throw error;
+
+            closeModal();
+            renderPlasticLogs(document.getElementById('view-container'));
+
+        } catch (err) {
+            console.error(err);
+            alert('Error: ' + err.message);
+            btn.disabled = false; btn.innerText = 'Retry';
+        }
+    });
+};
+
+window.verifyLog = async (logId, weight, type) => {
+    if (!confirm(`Confirm verification of ${weight}kg ${type}? This will award points immediately.`)) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: admin } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
+
+    const { error } = await supabase
+        .from('plastic_submissions')
+        .update({ status: 'verified', verified_by: admin?.id, verified_at: new Date().toISOString() })
+        .eq('id', logId);
+
+    if (error) alert('Verification failed: ' + error.message);
+    else renderPlasticLogs(document.getElementById('view-container'));
+};
+
+window.rejectLog = async (logId) => {
+    if (!confirm("Are you sure you want to reject this log?")) return;
+    const { error } = await supabase.from('plastic_submissions').update({ status: 'rejected' }).eq('id', logId);
+    if (!error) renderPlasticLogs(document.getElementById('view-container'));
+};
