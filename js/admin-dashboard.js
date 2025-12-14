@@ -1,11 +1,17 @@
 import { supabase } from './supabase-client.js';
 
 export const renderDashboard = async (container) => {
-    // Fetch Stats using the SQL function provided
+    // 1. Fetch Stats via RPC (Low Egress: Returns only a small JSON object)
     const { data: stats, error } = await supabase.rpc('get_admin_dashboard_stats');
-    if(error) console.error(error);
+    
+    if (error) {
+        console.error('Stats Error:', error);
+        container.innerHTML = `<div class="p-4 text-red-500 bg-red-50 rounded">Error loading stats. Please ensure the SQL function is updated.</div>`;
+        return;
+    }
 
     container.innerHTML = `
+        <h3 class="text-lg font-bold text-gray-800 mb-4">System Health</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             ${statCard('Total Distributed', stats?.distributed || 0, 'leaf', 'text-green-600', 'bg-green-100')}
             ${statCard('Points Redeemed', stats?.redeemed || 0, 'shopping-bag', 'text-blue-600', 'bg-blue-100')}
@@ -13,55 +19,50 @@ export const renderDashboard = async (container) => {
             ${statCard('Pending Actions', stats?.pending || 0, 'clock', 'text-orange-600', 'bg-orange-100')}
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 class="text-lg font-bold mb-4 text-gray-800">Impact Overview</h3>
-                <div class="grid grid-cols-3 gap-4 text-center mb-6">
-                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                        <div class="text-2xl font-bold text-gray-900">${stats?.plastic_kg || 0} kg</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide font-bold">Plastic Recycled</div>
-                    </div>
-                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                         <div class="text-2xl font-bold text-gray-900">${(stats?.plastic_kg * 2.5).toFixed(1) || 0} kg</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide font-bold">CO2 Saved</div>
-                    </div>
-                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                         <div class="text-2xl font-bold text-gray-900" id="total-events-count">...</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide font-bold">Events Held</div>
-                    </div>
-                </div>
-                <canvas id="trafficChart" height="100"></canvas>
+        <h3 class="text-lg font-bold text-gray-800 mb-4">Active Users Overview</h3>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Today</span>
+                <span class="text-3xl font-black text-gray-800">${stats?.active_day || 0}</span>
+                <span class="text-xs text-green-600 font-medium mt-1">Users</span>
             </div>
             
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 class="text-lg font-bold mb-4 text-gray-800">Top Performers</h3>
-                <div id="top-students-list" class="space-y-4">Loading...</div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">This Week</span>
+                <span class="text-3xl font-black text-gray-800">${stats?.active_week || 0}</span>
+                <span class="text-xs text-blue-600 font-medium mt-1">Users</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">This Month</span>
+                <span class="text-3xl font-black text-gray-800">${stats?.active_month || 0}</span>
+                <span class="text-xs text-purple-600 font-medium mt-1">Users</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">This Year</span>
+                <span class="text-3xl font-black text-gray-800">${stats?.active_year || 0}</span>
+                <span class="text-xs text-orange-600 font-medium mt-1">Users</span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">Environmental Impact</h3>
+            <div class="flex items-center gap-8">
+                <div>
+                    <div class="text-3xl font-black text-gray-900">${stats?.plastic_kg || 0} <span class="text-lg text-gray-400 font-medium">kg</span></div>
+                    <div class="text-xs text-gray-500 uppercase tracking-wide font-bold">Plastic Recycled</div>
+                </div>
+                <div class="h-10 w-px bg-gray-200"></div>
+                <div>
+                    <div class="text-3xl font-black text-gray-900">${((stats?.plastic_kg || 0) * 2.5).toFixed(1)} <span class="text-lg text-gray-400 font-medium">kg</span></div>
+                    <div class="text-xs text-gray-500 uppercase tracking-wide font-bold">CO₂ Saved</div>
+                </div>
             </div>
         </div>
     `;
 
-    // Fetch extra data
-    const { count } = await supabase.from('events').select('*', { count: 'exact', head: true });
-    document.getElementById('total-events-count').textContent = count || 0;
-
-    // Top Students
-    const { data: topUsers } = await supabase.from('users').select('full_name, course, lifetime_points').order('lifetime_points', {ascending: false}).limit(5);
-    const list = document.getElementById('top-students-list');
-    list.innerHTML = topUsers.map((u, i) => `
-        <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition">
-            <div class="flex items-center gap-3">
-                <span class="font-bold text-gray-400 w-4">#${i+1}</span>
-                <div>
-                    <div class="font-bold text-sm text-gray-900">${u.full_name}</div>
-                    <div class="text-xs text-gray-500">${u.course}</div>
-                </div>
-            </div>
-            <span class="font-bold text-green-600 text-sm">${u.lifetime_points} pts</span>
-        </div>
-    `).join('');
-
-    // Chart.js implementation
-    initChart();
+    if(window.lucide) window.lucide.createIcons();
 };
 
 const statCard = (title, value, icon, colorClass, bgClass) => `
@@ -75,22 +76,3 @@ const statCard = (title, value, icon, colorClass, bgClass) => `
         </div>
     </div>
 `;
-
-const initChart = () => {
-    const ctx = document.getElementById('trafficChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            datasets: [{
-                label: 'Active Users',
-                data: [12, 19, 15, 25, 22, 30, 45], // This would ideally come from analytics table
-                borderColor: '#16a34a',
-                backgroundColor: 'rgba(22, 163, 74, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { display: false } } }
-    });
-};
