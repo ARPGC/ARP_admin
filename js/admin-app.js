@@ -9,6 +9,7 @@ import { renderOrders } from './admin-orders.js';
 import { renderChallenges } from './admin-challenges.js'; 
 import { renderCodes } from './admin-codes.js';
 import { renderPlasticLogs } from './admin-plastic.js'; 
+import { renderRevoke } from './admin-revoke.js'; // <--- NEW IMPORT
 
 // Global Auth Check
 const checkAdminAuth = async () => {
@@ -35,6 +36,8 @@ const checkAdminAuth = async () => {
 
     const nameEl = document.getElementById('admin-name');
     if(nameEl) nameEl.textContent = user.full_name;
+    
+    // Load default view
     loadView('dashboard');
 };
 
@@ -94,6 +97,10 @@ window.loadView = (view) => {
                 if(title) title.textContent = 'Plastic Recycling Logs'; 
                 renderPlasticLogs(container); 
                 break;
+            case 'revoke':  // <--- NEW CASE
+                if(title) title.textContent = 'Revoke User Points'; 
+                renderRevoke(container); 
+                break;
             default: 
                 renderDashboard(container);
         }
@@ -129,4 +136,5 @@ window.openModal = (html) => {
     }, 10);
 };
 
+// Start Application
 checkAdminAuth();
