@@ -9,7 +9,7 @@ export const renderRevoke = async (container) => {
                 <label class="block text-xs font-bold text-gray-700 mb-2 uppercase">Find Student</label>
                 <div class="flex gap-3">
                     <input type="text" id="revoke-search" placeholder="Enter Student ID (e.g. 2023001) or Email" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
-                    <button onclick="searchUserForRevoke()" class="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold hover:bg-black transition">
+                    <button id="btn-search-user" class="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold hover:bg-black transition">
                         Search
                     </button>
                 </div>
@@ -34,6 +34,8 @@ export const renderRevoke = async (container) => {
 
                 <hr class="border-gray-100 my-6">
 
+                <div id="revoke-error-box" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm font-bold"></div>
+
                 <form id="revoke-form" class="space-y-4">
                     <input type="hidden" id="rv-user-uuid">
                     
@@ -49,7 +51,7 @@ export const renderRevoke = async (container) => {
 
                     <div class="bg-red-50 p-3 rounded text-red-700 text-xs flex items-center gap-2">
                         <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                        <span>This action is irreversible and will be logged in the user's history.</span>
+                        <span>This action is irreversible and will be logged.</span>
                     </div>
 
                     <button type="submit" id="btn-revoke-submit" class="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 transition shadow-lg shadow-red-200">
@@ -59,10 +61,66 @@ export const renderRevoke = async (container) => {
             </div>
         </div>
     `;
+    
     if(window.lucide) window.lucide.createIcons();
+
+    // --- ATTACH LISTENERS HERE (Inside the function) ---
+    
+    // 1. Search Button Logic
+    document.getElementById('btn-search-user').addEventListener('click', searchUserForRevoke);
+
+    // 2. Form Submit Logic
+    document.getElementById('revoke-form').addEventListener('submit', async (e) => {
+        e.preventDefault(); // STOP THE PAGE RELOAD
+        
+        const btn = document.getElementById('btn-revoke-submit');
+        const errBox = document.getElementById('revoke-error-box');
+        const uid = document.getElementById('rv-user-uuid').value;
+        const amount = parseInt(document.getElementById('rv-amount').value);
+        const reason = document.getElementById('rv-reason').value;
+
+        // Reset Error Box
+        errBox.classList.add('hidden');
+        errBox.textContent = '';
+
+        if (!confirm(`Are you sure you want to deduct ${amount} points?`)) return;
+
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            // Call the SQL Function
+            const { data, error } = await supabase.rpc('admin_revoke_points', {
+                p_admin_id: user.id,
+                p_target_user_id: uid,
+                p_amount: amount,
+                p_reason: reason
+            });
+
+            if (error) throw error;
+
+            alert(`Success! Points revoked.\nNew Balance: ${data.new_balance}`);
+            
+            // Clear Form
+            document.getElementById('revoke-result').classList.add('hidden');
+            document.getElementById('revoke-search').value = '';
+
+        } catch (err) {
+            console.error(err);
+            // Show error in the red box
+            errBox.textContent = "Failed: " + err.message;
+            errBox.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Confirm Revocation";
+        }
+    });
 };
 
-window.searchUserForRevoke = async () => {
+// Helper Function
+const searchUserForRevoke = async () => {
     const input = document.getElementById('revoke-search').value.trim();
     const errEl = document.getElementById('search-error');
     const resEl = document.getElementById('revoke-result');
@@ -72,7 +130,6 @@ window.searchUserForRevoke = async () => {
     errEl.classList.add('hidden');
     resEl.classList.add('hidden');
 
-    // Search by Student ID OR Email
     const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -80,12 +137,11 @@ window.searchUserForRevoke = async () => {
         .single();
 
     if (error || !user) {
-        errEl.textContent = "User not found. Please check Student ID or Email.";
+        errEl.textContent = "User not found. Check Student ID or Email.";
         errEl.classList.remove('hidden');
         return;
     }
 
-    // Populate UI
     document.getElementById('rv-user-uuid').value = user.id;
     document.getElementById('rv-img').src = user.profile_img_url || 'https://placehold.co/100';
     document.getElementById('rv-name').textContent = user.full_name;
@@ -93,54 +149,5 @@ window.searchUserForRevoke = async () => {
     document.getElementById('rv-course').textContent = user.course;
     document.getElementById('rv-points').textContent = user.current_points;
 
-    // Show Result
     resEl.classList.remove('hidden');
-    resEl.classList.add('animate-fade-in');
 };
-
-// Handle Form Submit
-setTimeout(() => {
-    // We attach the listener here to ensure DOM exists after render
-    const form = document.getElementById('revoke-form');
-    if (form) {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const btn = document.getElementById('btn-revoke-submit');
-            const uid = document.getElementById('rv-user-uuid').value;
-            const amount = parseInt(document.getElementById('rv-amount').value);
-            const reason = document.getElementById('rv-reason').value;
-
-            if (!confirm(`Are you sure you want to deduct ${amount} points from this user?`)) return;
-
-            btn.disabled = true;
-            btn.innerText = "Processing...";
-
-            try {
-                // Get Admin ID
-                const { data: { user } } = await supabase.auth.getUser();
-                
-                const { data, error } = await supabase.rpc('admin_revoke_points', {
-                    p_admin_id: user.id, // Only for logging purposes if needed
-                    p_target_user_id: uid,
-                    p_amount: amount,
-                    p_reason: reason
-                });
-
-                if (error) throw error;
-
-                alert(`Success! Points revoked. New Balance: ${data.new_balance}`);
-                
-                // Reset UI
-                document.getElementById('revoke-result').classList.add('hidden');
-                document.getElementById('revoke-search').value = '';
-
-            } catch (err) {
-                console.error(err);
-                alert("Error: " + err.message);
-                btn.disabled = false;
-                btn.innerText = "Confirm Revocation";
-            }
-        });
-    }
-}, 500); // Small delay to ensure render completes
