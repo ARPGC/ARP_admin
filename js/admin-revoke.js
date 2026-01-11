@@ -64,14 +64,12 @@ export const renderRevoke = async (container) => {
     
     if(window.lucide) window.lucide.createIcons();
 
-    // --- ATTACH LISTENERS HERE (Inside the function) ---
-    
     // 1. Search Button Logic
     document.getElementById('btn-search-user').addEventListener('click', searchUserForRevoke);
 
     // 2. Form Submit Logic
     document.getElementById('revoke-form').addEventListener('submit', async (e) => {
-        e.preventDefault(); // STOP THE PAGE RELOAD
+        e.preventDefault();
         
         const btn = document.getElementById('btn-revoke-submit');
         const errBox = document.getElementById('revoke-error-box');
@@ -89,11 +87,16 @@ export const renderRevoke = async (container) => {
         btn.innerText = "Processing...";
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            // FIX: Check if session exists before reading 'user.id'
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
             
+            if (authError || !user) {
+                throw new Error("Admin session expired. Please refresh the page and login again.");
+            }
+
             // Call the SQL Function
             const { data, error } = await supabase.rpc('admin_revoke_points', {
-                p_admin_id: user.id,
+                p_admin_id: user.id, // Safe to access .id now
                 p_target_user_id: uid,
                 p_amount: amount,
                 p_reason: reason
@@ -109,7 +112,6 @@ export const renderRevoke = async (container) => {
 
         } catch (err) {
             console.error(err);
-            // Show error in the red box
             errBox.textContent = "Failed: " + err.message;
             errBox.classList.remove('hidden');
         } finally {
