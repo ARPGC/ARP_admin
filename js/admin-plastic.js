@@ -6,12 +6,12 @@ const PLASTIC_TYPES = {
 };
 
 export const renderPlasticLogs = async (container) => {
-    // OPTIMIZATION: Limit to 50 recent logs & Select specific columns only
+    // FIX: Changed 'image_url' to 'submission_url' to match your database
     const { data: logs, error } = await supabase
         .from('plastic_submissions')
-        .select('id, weight_kg, plastic_type, status, created_at, image_url, users!user_id(full_name, student_id)')
+        .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id(full_name, student_id)')
         .order('created_at', { ascending: false })
-        .limit(50); // <--- HARD LIMIT
+        .limit(50); 
 
     if (error) console.error('Error fetching plastic logs:', error);
 
@@ -44,6 +44,7 @@ export const renderPlasticLogs = async (container) => {
                             const co2 = (log.weight_kg * (PLASTIC_TYPES[log.plastic_type] || 0.75)).toFixed(2);
                             const points = Math.ceil(log.weight_kg * 100);
                             
+                            // FIX: Using log.submission_url
                             return `
                             <tr class="hover:bg-gray-50 transition">
                                 <td class="p-4">
@@ -59,8 +60,8 @@ export const renderPlasticLogs = async (container) => {
                                     <div class="text-xs text-gray-400">Potential: ${points} pts</div>
                                 </td>
                                 <td class="p-4">
-                                    ${log.image_url 
-                                        ? `<a href="${log.image_url}" target="_blank" class="text-blue-600 hover:underline text-xs flex items-center gap-1"><i data-lucide="image" class="w-3 h-3"></i> View</a>` 
+                                    ${log.submission_url 
+                                        ? `<a href="${log.submission_url}" target="_blank" class="text-blue-600 hover:underline text-xs flex items-center gap-1"><i data-lucide="image" class="w-3 h-3"></i> View</a>` 
                                         : '<span class="text-gray-400 text-xs">No Image</span>'}
                                 </td>
                                 <td class="p-4">
@@ -146,7 +147,7 @@ window.openLogModal = async () => {
                     <input type="checkbox" id="pl-verify" class="w-5 h-5 text-green-600 rounded cursor-pointer">
                     <div>
                         <label for="pl-verify" class="font-bold text-green-800 text-sm cursor-pointer">Verify Immediately</label>
-                        <p class="text-xs text-green-600">Check this if you have verified the waste.</p>
+                        <p class="text-xs text-green-600">Check this if you have physically verified the waste.</p>
                     </div>
                 </div>
 
@@ -186,12 +187,13 @@ window.openLogModal = async () => {
             const isAutoVerify = document.getElementById('pl-verify').checked;
             const userId = document.getElementById('pl-user').value;
 
+            // FIX: Ensure payload uses correct column name 'submission_url'
             const payload = {
                 user_id: userId,
                 weight_kg: parseFloat(document.getElementById('pl-weight').value),
                 plastic_type: document.getElementById('pl-type').value,
                 location: document.getElementById('pl-location').value,
-                submission_url: imageUrl,
+                submission_url: imageUrl, 
                 status: isAutoVerify ? 'verified' : 'pending',
                 verified_by: isAutoVerify ? adminUser?.id : null,
                 verified_at: isAutoVerify ? new Date().toISOString() : null,
