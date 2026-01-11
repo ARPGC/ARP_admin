@@ -1,6 +1,6 @@
 import { supabase } from './supabase-client.js';
 
-// Import all page renderers
+// --- Page Renderers ---
 import { renderDashboard } from './admin-dashboard.js';
 import { renderEvents } from './admin-events.js';
 import { renderStores } from './admin-store.js';      
@@ -9,10 +9,11 @@ import { renderOrders } from './admin-orders.js';
 import { renderChallenges } from './admin-challenges.js'; 
 import { renderCodes } from './admin-codes.js';
 import { renderPlasticLogs } from './admin-plastic.js'; 
-import { renderRevoke } from './admin-revoke.js';     // Revoke Page
-import { renderResetPwd } from './admin-reset-pwd.js'; // Reset Password Page (NEW)
+import { renderRevoke } from './admin-revoke.js';     
+import { renderResetPwd } from './admin-reset-pwd.js'; 
+import { renderPromo } from './admin-promo.js'; // <--- NEW IMPORT
 
-// Global Auth Check
+// --- Global Auth Check ---
 const checkAdminAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -43,19 +44,18 @@ const checkAdminAuth = async () => {
     loadView('dashboard');
 };
 
-// Router Logic
+// --- Router Logic ---
 window.loadView = (view) => {
     const container = document.getElementById('view-container');
     const title = document.getElementById('page-title');
     
     if (!container) return;
 
-    // Loading State
+    // Loading Spinner
     container.innerHTML = '<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div></div>';
 
-    // Update Navigation Styling (Active State)
+    // Update Sidebar Active State
     document.querySelectorAll('.nav-btn').forEach(btn => {
-        // Check if the button's onclick attribute contains the current view name
         if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${view}'`)) {
             btn.classList.add('bg-gray-800', 'text-white');
             btn.classList.remove('text-gray-300');
@@ -65,7 +65,7 @@ window.loadView = (view) => {
         }
     });
 
-    // Route Handler
+    // Render View
     setTimeout(() => {
         switch(view) {
             case 'dashboard': 
@@ -113,9 +113,14 @@ window.loadView = (view) => {
                 renderRevoke(container); 
                 break;
 
-            case 'reset-pwd': // <--- NEW CASE ADDED HERE
+            case 'reset-pwd': 
                 if(title) title.textContent = 'Reset Student Password'; 
                 renderResetPwd(container); 
+                break;
+
+            case 'promo': // <--- NEW CASE
+                if(title) title.textContent = 'Give Promotional Points'; 
+                renderPromo(container); 
                 break;
                 
             default: 
@@ -131,7 +136,7 @@ window.handleLogout = async () => {
     window.location.href = 'admin-login.html';
 };
 
-// Modal Helpers
+// --- Modal Helpers ---
 window.closeModal = () => {
     const overlay = document.getElementById('modal-overlay');
     const content = document.getElementById('modal-content');
