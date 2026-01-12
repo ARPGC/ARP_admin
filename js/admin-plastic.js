@@ -72,15 +72,15 @@ window.loadLogs = async (isRefresh = false) => {
 
     tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto"></div></td></tr>`;
 
-    // FIX: Using 'users:user_id' explicitly tells Supabase which foreign key to use
+    // FIX 1: Default Query - Explicitly use 'users!user_id' to resolve ambiguity
     let dbQuery = supabase
         .from('plastic_submissions')
-        .select('id, weight_kg, plastic_type, status, created_at, submission_url, users:user_id(full_name, student_id)')
+        .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id(full_name, student_id)')
         .order('created_at', { ascending: false });
 
     // SEARCH LOGIC
     if (query) {
-        // We use !inner on the aliased relationship to filter based on joined data
+        // FIX 2: Search Query - Use 'users!user_id!inner' to filter AND resolve ambiguity
         dbQuery = supabase
             .from('plastic_submissions')
             .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id!inner(full_name, student_id)')
@@ -98,7 +98,7 @@ window.loadLogs = async (isRefresh = false) => {
 
     if (error) {
         console.error("Fetch error:", error);
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold">Error loading data.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold">Error loading data. Check console.</td></tr>`;
         return;
     }
 
@@ -154,9 +154,9 @@ window.loadLogs = async (isRefresh = false) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- MODAL & ACTION FUNCTIONS (Same as before) ---
+// --- MODAL & ACTION FUNCTIONS ---
 window.openLogModal = async () => {
-    // 1. Fetch Admin ID first
+    // 1. Fetch Admin ID
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
 
