@@ -5,110 +5,230 @@ const PLASTIC_TYPES = {
     'PET': 1.60, 'HDPE': 1.25, 'PVC': 0.90, 'LDPE': 1.10, 'PP': 1.45, 'PS': 1.15, 'Other': 0.75
 };
 
+// State to track selected user
+let currentSelectedUser = null;
+
 export const renderPlasticLogs = async (container) => {
     container.innerHTML = `
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <div>
-                <h3 class="font-bold text-xl text-gray-800">Plastic Recycling Logs</h3>
-                <p class="text-xs text-gray-500 mt-1">Manage waste verification and history</p>
+        <div class="max-w-6xl mx-auto h-full flex flex-col">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6 relative z-20">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                    <div>
+                        <h3 class="font-bold text-xl text-gray-800">Plastic Recycling Logs</h3>
+                        <p class="text-xs text-gray-500">Search students directly to manage their records</p>
+                    </div>
+                    <button onclick="openLogModal()" class="bg-brand-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-brand-700 flex items-center gap-2 shadow-lg shadow-brand-200 transition-all">
+                        <i data-lucide="plus" class="w-5 h-5"></i> New Log entry
+                    </button>
+                </div>
+
+                <div class="relative w-full">
+                    <div class="flex items-center border-2 border-gray-200 rounded-xl focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-50 transition-all bg-gray-50 overflow-hidden">
+                        <div class="pl-4 text-gray-400">
+                            <i data-lucide="search" class="w-5 h-5"></i>
+                        </div>
+                        <input type="text" id="smart-user-search" autocomplete="off"
+                            placeholder="Start typing Student Name or ID (e.g. Mohit... or 520...)" 
+                            class="w-full p-4 bg-transparent border-none focus:ring-0 text-gray-800 font-medium placeholder-gray-400 outline-none">
+                        
+                        <button id="clear-search-btn" class="hidden px-4 text-gray-400 hover:text-red-500 transition" onclick="clearSearch()">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <div id="search-dropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-80 overflow-y-auto z-50 divide-y divide-gray-50">
+                        </div>
+                </div>
             </div>
-            
-            <div class="flex flex-1 w-full md:w-auto gap-2 justify-end">
-                <div class="relative flex-1 max-w-md">
-                    <input type="text" id="pl-search" placeholder="Search Student Name or ID..." 
-                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
-                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex-grow flex flex-col overflow-hidden relative z-10">
+                
+                <div id="active-filter-banner" class="hidden bg-blue-50 border-b border-blue-100 p-3 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <img id="filter-user-img" src="" class="w-8 h-8 rounded-full border border-white shadow-sm">
+                        <div>
+                            <p class="text-xs font-bold text-blue-600 uppercase">Filtered View</p>
+                            <p id="filter-user-name" class="text-sm font-bold text-gray-900"></p>
+                        </div>
+                    </div>
+                    <button onclick="clearSearch()" class="text-xs font-bold text-blue-500 hover:text-blue-700 hover:underline">Clear Filter</button>
+                </div>
+
+                <div class="overflow-x-auto flex-grow">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-xs border-b border-gray-200 sticky top-0">
+                            <tr>
+                                <th class="p-4">Student</th>
+                                <th class="p-4">Weight / Type</th>
+                                <th class="p-4">CO₂ Saved</th>
+                                <th class="p-4">Proof</th>
+                                <th class="p-4">Date</th>
+                                <th class="p-4">Status</th>
+                                <th class="p-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="plastic-table-body" class="divide-y divide-gray-100">
+                            <tr><td colspan="7" class="p-12 text-center text-gray-400">Loading recent logs...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
                 
-                <button onclick="loadLogs()" class="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-black transition shadow-sm">
-                    Search
-                </button>
-
-                <button onclick="openLogModal()" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-700 flex items-center gap-2 shadow-sm transition-all whitespace-nowrap">
-                    <i data-lucide="plus" class="w-4 h-4"></i> New Log
-                </button>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="overflow-x-auto min-h-[400px]">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-xs border-b border-gray-200">
-                        <tr>
-                            <th class="p-4">Student</th>
-                            <th class="p-4">Weight / Type</th>
-                            <th class="p-4">CO₂ Saved</th>
-                            <th class="p-4">Proof</th>
-                            <th class="p-4">Date</th>
-                            <th class="p-4">Status</th>
-                            <th class="p-4 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="plastic-table-body" class="divide-y divide-gray-100">
-                        <tr><td colspan="7" class="p-8 text-center text-gray-500">Loading logs...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="p-4 border-t border-gray-100 bg-gray-50 text-xs text-gray-500 flex justify-between items-center">
-                <span id="log-count-info">Showing recent logs</span>
-                <button onclick="loadLogs(true)" class="text-brand-600 font-bold hover:underline">Refresh List</button>
+                <div class="p-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 text-center">
+                    <span id="logs-status-text">Showing recent 50 entries</span>
+                </div>
             </div>
         </div>
     `;
 
     if(window.lucide) window.lucide.createIcons();
 
-    // Enter Key Search Support
-    document.getElementById('pl-search').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') loadLogs();
+    // --- SETUP SMART SEARCH LISTENERS ---
+    const searchInput = document.getElementById('smart-user-search');
+    let debounceTimer;
+
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+            document.getElementById('search-dropdown').classList.add('hidden');
+            return;
+        }
+
+        // Wait 300ms before querying database to save resources
+        debounceTimer = setTimeout(() => performUserSearch(query), 300);
     });
 
-    // Initial Load
-    loadLogs();
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#smart-user-search') && !e.target.closest('#search-dropdown')) {
+            document.getElementById('search-dropdown').classList.add('hidden');
+        }
+    });
+
+    // Initial Load (All Recent)
+    loadLogs(null);
 };
 
-// --- CORE LOG LOADING FUNCTION ---
-window.loadLogs = async (isRefresh = false) => {
+// --- 1. SEARCH USERS DIRECTLY ---
+const performUserSearch = async (query) => {
+    const dropdown = document.getElementById('search-dropdown');
+    dropdown.innerHTML = '<div class="p-4 text-center text-gray-400 text-xs">Searching database...</div>';
+    dropdown.classList.remove('hidden');
+
+    // Search USERS table directly
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('id, full_name, student_id, course, profile_img_url')
+        .or(`full_name.ilike.%${query}%,student_id.ilike.%${query}%`)
+        .limit(10); // Show top 10 matches
+
+    if (error || !users || users.length === 0) {
+        dropdown.innerHTML = `
+            <div class="p-4 text-center">
+                <p class="text-gray-800 font-bold text-sm">No student found</p>
+                <p class="text-xs text-gray-400 mt-1">Try a different name or ID</p>
+            </div>`;
+        return;
+    }
+
+    // Render Results
+    dropdown.innerHTML = users.map(user => `
+        <div onclick="selectUserForLogs('${user.id}', '${user.full_name}', '${user.student_id}', '${user.profile_img_url || ''}')" 
+             class="flex items-center gap-3 p-3 hover:bg-brand-50 cursor-pointer transition-colors group">
+            
+            <img src="${user.profile_img_url || 'https://placehold.co/100'}" class="w-10 h-10 rounded-full object-cover border border-gray-100 group-hover:border-brand-200">
+            
+            <div class="flex-1">
+                <h4 class="font-bold text-gray-900 group-hover:text-brand-700 text-sm">${user.full_name}</h4>
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                    <span class="font-mono bg-gray-100 px-1.5 rounded">${user.student_id}</span>
+                    <span>•</span>
+                    <span class="uppercase">${user.course || 'Student'}</span>
+                </div>
+            </div>
+            
+            <div class="text-gray-300 group-hover:text-brand-500">
+                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+            </div>
+        </div>
+    `).join('');
+
+    if(window.lucide) window.lucide.createIcons();
+};
+
+// --- 2. SELECT USER & FILTER LOGS ---
+window.selectUserForLogs = (id, name, studentId, imgUrl) => {
+    // 1. Update State
+    currentSelectedUser = { id, name, studentId };
+
+    // 2. Update UI
+    document.getElementById('smart-user-search').value = `${name} (${studentId})`;
+    document.getElementById('search-dropdown').classList.add('hidden');
+    document.getElementById('clear-search-btn').classList.remove('hidden');
+
+    // 3. Show Filter Banner
+    const banner = document.getElementById('active-filter-banner');
+    document.getElementById('filter-user-name').textContent = `${name} (${studentId})`;
+    document.getElementById('filter-user-img').src = imgUrl || 'https://placehold.co/100';
+    banner.classList.remove('hidden');
+
+    // 4. Load SPECIFIC Logs
+    loadLogs(id);
+};
+
+window.clearSearch = () => {
+    currentSelectedUser = null;
+    document.getElementById('smart-user-search').value = '';
+    document.getElementById('search-dropdown').classList.add('hidden');
+    document.getElementById('active-filter-banner').classList.add('hidden');
+    document.getElementById('clear-search-btn').classList.add('hidden');
+    loadLogs(null); // Load all
+};
+
+// --- 3. FETCH LOGS (Smart) ---
+window.loadLogs = async (specificUserId = null) => {
     const tbody = document.getElementById('plastic-table-body');
-    const searchInput = document.getElementById('pl-search');
-    const query = searchInput ? searchInput.value.trim() : '';
-    
     if(!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto"></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto"></div></td></tr>`;
 
-    // 1. Base Selection (Explicitly use users!user_id to fix ambiguity)
     let dbQuery = supabase
         .from('plastic_submissions')
         .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id(full_name, student_id)')
         .order('created_at', { ascending: false });
 
-    // 2. Search Logic (Queries ALL records if search is active)
-    if (query) {
-        // Use !inner to force filtering on the joined table
-        dbQuery = supabase
-            .from('plastic_submissions')
-            .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id!inner(full_name, student_id)')
-            .or(`full_name.ilike.%${query}%,student_id.ilike.%${query}%`, { foreignTable: 'users' })
-            .order('created_at', { ascending: false });
-            
-        document.getElementById('log-count-info').textContent = `Search results for "${query}"`;
+    // FILTER LOGIC
+    if (specificUserId) {
+        dbQuery = dbQuery.eq('user_id', specificUserId); // Strict ID Filter
+        document.getElementById('logs-status-text').textContent = "Displaying complete history for selected student";
     } else {
-        // If NO search, limit to recent 50 for speed
-        dbQuery = dbQuery.limit(50);
-        document.getElementById('log-count-info').textContent = "Showing recent 50 entries (Search to access older logs)";
+        dbQuery = dbQuery.limit(50); // Default Limit
+        document.getElementById('logs-status-text').textContent = "Showing recent 50 entries across all students";
     }
 
     const { data: logs, error } = await dbQuery;
 
     if (error) {
-        console.error("Fetch error:", error);
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold">Error loading data. Check console.</td></tr>`;
+        console.error("Log Fetch Error:", error);
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold">Error loading data.</td></tr>`;
         return;
     }
 
     if (!logs || logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400 italic">No logs found matching your criteria.</td></tr>`;
+        if(specificUserId) {
+            tbody.innerHTML = `
+                <tr><td colspan="7" class="p-12 text-center">
+                    <div class="flex flex-col items-center justify-center gap-2">
+                        <div class="bg-gray-100 p-3 rounded-full"><i data-lucide="inbox" class="w-8 h-8 text-gray-400"></i></div>
+                        <p class="text-gray-800 font-bold">No logs found for this student.</p>
+                        <button onclick="openLogModal('${specificUserId}')" class="text-brand-600 hover:underline text-sm font-bold">Add first log entry</button>
+                    </div>
+                </td></tr>`;
+        } else {
+            tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400 italic">No activity yet.</td></tr>`;
+        }
+        if(window.lucide) window.lucide.createIcons();
         return;
     }
 
@@ -119,7 +239,7 @@ window.loadLogs = async (isRefresh = false) => {
         const dateStr = new Date(log.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit' });
 
         return `
-        <tr class="hover:bg-gray-50 transition">
+        <tr class="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
             <td class="p-4">
                 <div class="font-bold text-gray-900">${log.users?.full_name || 'Unknown'}</div>
                 <div class="text-xs text-gray-500">${log.users?.student_id || '-'}</div>
@@ -149,9 +269,9 @@ window.loadLogs = async (isRefresh = false) => {
             </td>
             <td class="p-4 text-right">
                 ${log.status === 'pending' ? `
-                    <button onclick="verifyLog('${log.id}', ${log.weight_kg}, '${log.plastic_type || 'Other'}')" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm">Verify</button>
-                    <button onclick="rejectLog('${log.id}')" class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 ml-1">Reject</button>
-                ` : '<span class="text-gray-400 text-xs italic">Locked</span>'}
+                    <button onclick="verifyLog('${log.id}', ${log.weight_kg}, '${log.plastic_type || 'Other'}')" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm transition">Verify</button>
+                    <button onclick="rejectLog('${log.id}')" class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 ml-1 transition">Reject</button>
+                ` : '<span class="text-gray-400 text-xs italic opacity-60">Locked</span>'}
             </td>
         </tr>
     `}).join('');
@@ -159,13 +279,16 @@ window.loadLogs = async (isRefresh = false) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- MODAL & ACTION FUNCTIONS (Kept same as before) ---
-window.openLogModal = async () => {
-    // 1. Fetch Admin ID
+// --- 4. MODAL & ACTIONS (Pre-fills selected user) ---
+window.openLogModal = async (preSelectedId = null) => {
+    // If opened from the "Add First Log" button, use that ID. Otherwise, check global state.
+    const targetId = preSelectedId || currentSelectedUser?.id;
+
+    // Fetch Admin ID
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
 
-    // 2. Fetch Users (Sorted)
+    // Fetch All Users for dropdown (in case they want to change)
     const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name');
 
     const html = `
@@ -178,21 +301,21 @@ window.openLogModal = async () => {
             <form id="plastic-form" class="space-y-5 flex-grow overflow-y-auto p-1">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Select Student</label>
-                    <select id="pl-user" class="w-full p-2 border border-gray-300 rounded-lg" required>
+                    <select id="pl-user" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" required>
                         <option value="">-- Select User --</option>
                         <option value="${adminUser?.id}" class="font-bold bg-gray-100">★ Record for Myself (Admin)</option>
-                        ${users.map(u => `<option value="${u.id}">${u.full_name} (${u.student_id})</option>`).join('')}
+                        ${users.map(u => `<option value="${u.id}" ${u.id === targetId ? 'selected' : ''}>${u.full_name} (${u.student_id})</option>`).join('')}
                     </select>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Weight (kg)</label>
-                        <input type="number" id="pl-weight" step="0.01" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="0.00" required>
+                        <input type="number" id="pl-weight" step="0.01" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="0.00" required>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Plastic Type</label>
-                        <select id="pl-type" class="w-full p-2 border border-gray-300 rounded-lg" required>
+                        <select id="pl-type" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" required>
                             ${Object.keys(PLASTIC_TYPES).map(t => `<option value="${t}">${t}</option>`).join('')}
                         </select>
                     </div>
@@ -227,7 +350,7 @@ window.openLogModal = async () => {
                     </div>
                 </div>
 
-                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 shadow-md mt-4">Submit Log</button>
+                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 shadow-md mt-4 transition">Submit Log</button>
             </form>
         </div>
     `;
@@ -281,7 +404,8 @@ window.openLogModal = async () => {
             if (error) throw error;
 
             closeModal();
-            loadLogs(); // Refresh list
+            // Refresh logs for the currently selected user (or all if none selected)
+            loadLogs(currentSelectedUser?.id || null);
 
         } catch (err) {
             console.error(err);
@@ -302,11 +426,11 @@ window.verifyLog = async (logId, weight, type) => {
         .eq('id', logId);
 
     if (error) alert('Verification failed: ' + error.message);
-    else loadLogs();
+    else loadLogs(currentSelectedUser?.id || null);
 };
 
 window.rejectLog = async (logId) => {
     if (!confirm("Are you sure you want to reject this log?")) return;
     const { error } = await supabase.from('plastic_submissions').update({ status: 'rejected' }).eq('id', logId);
-    if (!error) loadLogs();
+    if (!error) loadLogs(currentSelectedUser?.id || null);
 };
