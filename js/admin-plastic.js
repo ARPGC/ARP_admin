@@ -72,19 +72,24 @@ window.loadLogs = async (isRefresh = false) => {
 
     tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto"></div></td></tr>`;
 
+    // FIX: Using 'users:user_id' explicitly tells Supabase which foreign key to use
     let dbQuery = supabase
         .from('plastic_submissions')
-        .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!inner(full_name, student_id)')
+        .select('id, weight_kg, plastic_type, status, created_at, submission_url, users:user_id(full_name, student_id)')
         .order('created_at', { ascending: false });
 
     // SEARCH LOGIC
     if (query) {
-        // If searching, look through ALL records (no limit)
-        // We filter the Joined 'users' table using !inner
-        dbQuery = dbQuery.or(`full_name.ilike.%${query}%,student_id.ilike.%${query}%`, { foreignTable: 'users' });
+        // We use !inner on the aliased relationship to filter based on joined data
+        dbQuery = supabase
+            .from('plastic_submissions')
+            .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id!inner(full_name, student_id)')
+            .or(`full_name.ilike.%${query}%,student_id.ilike.%${query}%`, { foreignTable: 'users' })
+            .order('created_at', { ascending: false });
+            
         document.getElementById('log-count-info').textContent = `Search results for "${query}"`;
     } else {
-        // If NO search, just show the last 50 (Performance optimization)
+        // Normal load (limit 50)
         dbQuery = dbQuery.limit(50);
         document.getElementById('log-count-info').textContent = "Showing recent 50 entries (Search to find older logs)";
     }
@@ -149,13 +154,14 @@ window.loadLogs = async (isRefresh = false) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- MODAL & ACTION FUNCTIONS (Kept same as before) ---
-
+// --- MODAL & ACTION FUNCTIONS (Same as before) ---
 window.openLogModal = async () => {
-    // Fetch users for dropdown (limit 100 for dropdown speed, search handled by browser select usually)
-    const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name');
+    // 1. Fetch Admin ID first
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
+
+    // 2. Fetch Users (Limit 100 for dropdown performance)
+    const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name').limit(100);
 
     const html = `
         <div class="p-6 h-full flex flex-col relative">
