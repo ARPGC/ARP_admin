@@ -5,8 +5,8 @@ const PLASTIC_TYPES = {
     'PET': 1.60, 'HDPE': 1.25, 'PVC': 0.90, 'LDPE': 1.10, 'PP': 1.45, 'PS': 1.15, 'Other': 0.75
 };
 
-// State to track selected user
-let currentSelectedUser = null;
+// Global State
+let currentSelectedUser = null; 
 
 export const renderPlasticLogs = async (container) => {
     container.innerHTML = `
@@ -24,11 +24,9 @@ export const renderPlasticLogs = async (container) => {
 
                 <div class="relative w-full">
                     <div class="flex items-center border-2 border-gray-200 rounded-xl focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-50 transition-all bg-gray-50 overflow-hidden">
-                        <div class="pl-4 text-gray-400">
-                            <i data-lucide="search" class="w-5 h-5"></i>
-                        </div>
+                        <div class="pl-4 text-gray-400"><i data-lucide="search" class="w-5 h-5"></i></div>
                         <input type="text" id="smart-user-search" autocomplete="off"
-                            placeholder="Start typing Student Name or ID (e.g. Mohit... or 520...)" 
+                            placeholder="Find Student by Name or ID..." 
                             class="w-full p-4 bg-transparent border-none focus:ring-0 text-gray-800 font-medium placeholder-gray-400 outline-none">
                         
                         <button id="clear-search-btn" class="hidden px-4 text-gray-400 hover:text-red-500 transition" onclick="clearSearch()">
@@ -36,8 +34,7 @@ export const renderPlasticLogs = async (container) => {
                         </button>
                     </div>
 
-                    <div id="search-dropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-80 overflow-y-auto z-50 divide-y divide-gray-50">
-                        </div>
+                    <div id="search-dropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-80 overflow-y-auto z-50 divide-y divide-gray-50"></div>
                 </div>
             </div>
 
@@ -82,98 +79,72 @@ export const renderPlasticLogs = async (container) => {
 
     if(window.lucide) window.lucide.createIcons();
 
-    // --- SETUP SMART SEARCH LISTENERS ---
+    // --- MAIN SEARCH LOGIC ---
     const searchInput = document.getElementById('smart-user-search');
     let debounceTimer;
 
     searchInput.addEventListener('input', (e) => {
         clearTimeout(debounceTimer);
         const query = e.target.value.trim();
-        
         if (query.length < 2) {
             document.getElementById('search-dropdown').classList.add('hidden');
             return;
         }
-
-        // Wait 300ms before querying database to save resources
         debounceTimer = setTimeout(() => performUserSearch(query), 300);
     });
 
-    // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#smart-user-search') && !e.target.closest('#search-dropdown')) {
             document.getElementById('search-dropdown').classList.add('hidden');
         }
     });
 
-    // Initial Load (All Recent)
     loadLogs(null);
 };
 
-// --- 1. SEARCH USERS DIRECTLY ---
+// --- HELPER: SEARCH FUNCTION ---
 const performUserSearch = async (query) => {
     const dropdown = document.getElementById('search-dropdown');
     dropdown.innerHTML = '<div class="p-4 text-center text-gray-400 text-xs">Searching database...</div>';
     dropdown.classList.remove('hidden');
 
-    // Search USERS table directly
     const { data: users, error } = await supabase
         .from('users')
         .select('id, full_name, student_id, course, profile_img_url')
         .or(`full_name.ilike.%${query}%,student_id.ilike.%${query}%`)
-        .limit(10); // Show top 10 matches
+        .limit(10);
 
     if (error || !users || users.length === 0) {
-        dropdown.innerHTML = `
-            <div class="p-4 text-center">
-                <p class="text-gray-800 font-bold text-sm">No student found</p>
-                <p class="text-xs text-gray-400 mt-1">Try a different name or ID</p>
-            </div>`;
+        dropdown.innerHTML = `<div class="p-4 text-center"><p class="text-gray-800 font-bold text-sm">No student found</p></div>`;
         return;
     }
 
-    // Render Results
     dropdown.innerHTML = users.map(user => `
         <div onclick="selectUserForLogs('${user.id}', '${user.full_name}', '${user.student_id}', '${user.profile_img_url || ''}')" 
              class="flex items-center gap-3 p-3 hover:bg-brand-50 cursor-pointer transition-colors group">
-            
-            <img src="${user.profile_img_url || 'https://placehold.co/100'}" class="w-10 h-10 rounded-full object-cover border border-gray-100 group-hover:border-brand-200">
-            
+            <img src="${user.profile_img_url || 'https://placehold.co/100'}" class="w-10 h-10 rounded-full object-cover border border-gray-100">
             <div class="flex-1">
                 <h4 class="font-bold text-gray-900 group-hover:text-brand-700 text-sm">${user.full_name}</h4>
                 <div class="flex items-center gap-2 text-xs text-gray-500">
                     <span class="font-mono bg-gray-100 px-1.5 rounded">${user.student_id}</span>
-                    <span>•</span>
                     <span class="uppercase">${user.course || 'Student'}</span>
                 </div>
             </div>
-            
-            <div class="text-gray-300 group-hover:text-brand-500">
-                <i data-lucide="chevron-right" class="w-5 h-5"></i>
-            </div>
         </div>
     `).join('');
-
-    if(window.lucide) window.lucide.createIcons();
 };
 
-// --- 2. SELECT USER & FILTER LOGS ---
 window.selectUserForLogs = (id, name, studentId, imgUrl) => {
-    // 1. Update State
     currentSelectedUser = { id, name, studentId };
-
-    // 2. Update UI
     document.getElementById('smart-user-search').value = `${name} (${studentId})`;
     document.getElementById('search-dropdown').classList.add('hidden');
     document.getElementById('clear-search-btn').classList.remove('hidden');
 
-    // 3. Show Filter Banner
     const banner = document.getElementById('active-filter-banner');
     document.getElementById('filter-user-name').textContent = `${name} (${studentId})`;
     document.getElementById('filter-user-img').src = imgUrl || 'https://placehold.co/100';
     banner.classList.remove('hidden');
 
-    // 4. Load SPECIFIC Logs
     loadLogs(id);
 };
 
@@ -183,10 +154,10 @@ window.clearSearch = () => {
     document.getElementById('search-dropdown').classList.add('hidden');
     document.getElementById('active-filter-banner').classList.add('hidden');
     document.getElementById('clear-search-btn').classList.add('hidden');
-    loadLogs(null); // Load all
+    loadLogs(null);
 };
 
-// --- 3. FETCH LOGS (Smart) ---
+// --- FETCH LOGS ---
 window.loadLogs = async (specificUserId = null) => {
     const tbody = document.getElementById('plastic-table-body');
     if(!tbody) return;
@@ -198,48 +169,33 @@ window.loadLogs = async (specificUserId = null) => {
         .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id(full_name, student_id)')
         .order('created_at', { ascending: false });
 
-    // FILTER LOGIC
     if (specificUserId) {
-        dbQuery = dbQuery.eq('user_id', specificUserId); // Strict ID Filter
+        dbQuery = dbQuery.eq('user_id', specificUserId);
         document.getElementById('logs-status-text').textContent = "Displaying complete history for selected student";
     } else {
-        dbQuery = dbQuery.limit(50); // Default Limit
+        dbQuery = dbQuery.limit(50);
         document.getElementById('logs-status-text').textContent = "Showing recent 50 entries across all students";
     }
 
     const { data: logs, error } = await dbQuery;
 
-    if (error) {
-        console.error("Log Fetch Error:", error);
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold">Error loading data.</td></tr>`;
+    if (error || !logs) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500">Error loading data.</td></tr>`;
         return;
     }
 
-    if (!logs || logs.length === 0) {
-        if(specificUserId) {
-            tbody.innerHTML = `
-                <tr><td colspan="7" class="p-12 text-center">
-                    <div class="flex flex-col items-center justify-center gap-2">
-                        <div class="bg-gray-100 p-3 rounded-full"><i data-lucide="inbox" class="w-8 h-8 text-gray-400"></i></div>
-                        <p class="text-gray-800 font-bold">No logs found for this student.</p>
-                        <button onclick="openLogModal('${specificUserId}')" class="text-brand-600 hover:underline text-sm font-bold">Add first log entry</button>
-                    </div>
-                </td></tr>`;
-        } else {
-            tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400 italic">No activity yet.</td></tr>`;
-        }
-        if(window.lucide) window.lucide.createIcons();
+    if (logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400 italic">No activity found.</td></tr>`;
         return;
     }
 
-    // RENDER ROWS
     tbody.innerHTML = logs.map(log => {
         const co2 = (log.weight_kg * (PLASTIC_TYPES[log.plastic_type] || 0.75)).toFixed(2);
         const points = Math.ceil(log.weight_kg * 100);
         const dateStr = new Date(log.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit' });
 
         return `
-        <tr class="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
+        <tr class="hover:bg-gray-50 transition border-b border-gray-50">
             <td class="p-4">
                 <div class="font-bold text-gray-900">${log.users?.full_name || 'Unknown'}</div>
                 <div class="text-xs text-gray-500">${log.users?.student_id || '-'}</div>
@@ -248,29 +204,14 @@ window.loadLogs = async (specificUserId = null) => {
                 <div class="font-bold text-gray-800">${log.weight_kg} kg</div>
                 <span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">${log.plastic_type || 'Other'}</span>
             </td>
-            <td class="p-4">
-                <div class="text-green-600 font-bold">${co2} kg</div>
-                <div class="text-xs text-gray-400">Value: ${points} pts</div>
-            </td>
-            <td class="p-4">
-                ${log.submission_url 
-                    ? `<a href="${log.submission_url}" target="_blank" class="text-blue-600 hover:underline text-xs flex items-center gap-1"><i data-lucide="image" class="w-3 h-3"></i> View</a>` 
-                    : '<span class="text-gray-400 text-xs">No Image</span>'}
-            </td>
-            <td class="p-4 text-xs text-gray-500">
-                ${dateStr}
-            </td>
-            <td class="p-4">
-                <span class="px-2 py-1 rounded text-xs font-bold uppercase ${
-                    log.status === 'verified' ? 'bg-green-100 text-green-700' :
-                    log.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                    'bg-yellow-100 text-yellow-700'
-                }">${log.status}</span>
-            </td>
+            <td class="p-4"><div class="text-green-600 font-bold">${co2} kg</div><div class="text-xs text-gray-400">${points} pts</div></td>
+            <td class="p-4">${log.submission_url ? `<a href="${log.submission_url}" target="_blank" class="text-blue-600 hover:underline text-xs flex items-center gap-1"><i data-lucide="image" class="w-3 h-3"></i> View</a>` : '<span class="text-gray-400 text-xs">No Image</span>'}</td>
+            <td class="p-4 text-xs text-gray-500">${dateStr}</td>
+            <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold uppercase ${log.status === 'verified' ? 'bg-green-100 text-green-700' : log.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}">${log.status}</span></td>
             <td class="p-4 text-right">
                 ${log.status === 'pending' ? `
-                    <button onclick="verifyLog('${log.id}', ${log.weight_kg}, '${log.plastic_type || 'Other'}')" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm transition">Verify</button>
-                    <button onclick="rejectLog('${log.id}')" class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 ml-1 transition">Reject</button>
+                    <button onclick="verifyLog('${log.id}', ${log.weight_kg}, '${log.plastic_type || 'Other'}')" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700">Verify</button>
+                    <button onclick="rejectLog('${log.id}')" class="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 ml-1">Reject</button>
                 ` : '<span class="text-gray-400 text-xs italic opacity-60">Locked</span>'}
             </td>
         </tr>
@@ -279,17 +220,17 @@ window.loadLogs = async (specificUserId = null) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- 4. MODAL & ACTIONS (Pre-fills selected user) ---
+// --- MODAL WITH SEARCH BAR ---
 window.openLogModal = async (preSelectedId = null) => {
-    // If opened from the "Add First Log" button, use that ID. Otherwise, check global state.
+    // Determine pre-filled user (if any)
     const targetId = preSelectedId || currentSelectedUser?.id;
-
-    // Fetch Admin ID
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
-
-    // Fetch All Users for dropdown (in case they want to change)
-    const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name');
+    let targetName = "";
+    
+    // If we have a target ID, fetch their name quickly to pre-fill the input
+    if (targetId) {
+        const { data } = await supabase.from('users').select('full_name, student_id').eq('id', targetId).single();
+        if (data) targetName = `${data.full_name} (${data.student_id})`;
+    }
 
     const html = `
         <div class="p-6 h-full flex flex-col relative">
@@ -299,13 +240,24 @@ window.openLogModal = async (preSelectedId = null) => {
             </div>
             
             <form id="plastic-form" class="space-y-5 flex-grow overflow-y-auto p-1">
-                <div>
+                
+                <div class="relative">
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Select Student</label>
-                    <select id="pl-user" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" required>
-                        <option value="">-- Select User --</option>
-                        <option value="${adminUser?.id}" class="font-bold bg-gray-100">★ Record for Myself (Admin)</option>
-                        ${users.map(u => `<option value="${u.id}" ${u.id === targetId ? 'selected' : ''}>${u.full_name} (${u.student_id})</option>`).join('')}
-                    </select>
+                    <input type="hidden" id="pl-user-id" value="${targetId || ''}" required>
+                    <div class="relative">
+                        <input type="text" id="pl-user-search" 
+                            class="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-bold text-gray-800"
+                            placeholder="Type Name or ID..." 
+                            value="${targetName}" 
+                            autocomplete="off">
+                        <i data-lucide="search" class="absolute left-3 top-3.5 w-4 h-4 text-gray-400"></i>
+                        
+                        <button type="button" id="pl-clear-user" class="absolute right-3 top-3 text-gray-400 hover:text-red-500 ${targetName ? '' : 'hidden'}">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div id="pl-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-48 overflow-y-auto z-50 divide-y divide-gray-50"></div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -336,12 +288,10 @@ window.openLogModal = async (preSelectedId = null) => {
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Proof (Optional)</label>
                     <input type="file" id="pl-file" class="w-full p-2 border border-gray-300 rounded-lg text-sm" accept="image/*">
                 </div>
-
                 <div>
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Location</label>
                     <input type="text" id="pl-location" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="e.g. Canteen">
                 </div>
-
                 <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-100">
                     <input type="checkbox" id="pl-verify" class="w-5 h-5 text-green-600 rounded cursor-pointer">
                     <div>
@@ -355,11 +305,76 @@ window.openLogModal = async (preSelectedId = null) => {
         </div>
     `;
     openModal(html);
+    if(window.lucide) window.lucide.createIcons();
 
-    // Calc Logic
+    // --- SETUP MODAL SEARCH LOGIC ---
+    const modalInput = document.getElementById('pl-user-search');
+    const modalResults = document.getElementById('pl-search-results');
+    const hiddenIdInput = document.getElementById('pl-user-id');
+    const clearBtn = document.getElementById('pl-clear-user');
+    let modalDebounce;
+
+    // Search Handler
+    modalInput.addEventListener('input', (e) => {
+        clearTimeout(modalDebounce);
+        const q = e.target.value.trim();
+        
+        // Reset ID if user modifies text
+        hiddenIdInput.value = ''; 
+        clearBtn.classList.add('hidden');
+
+        if (q.length < 2) {
+            modalResults.classList.add('hidden');
+            return;
+        }
+
+        modalDebounce = setTimeout(async () => {
+            modalResults.innerHTML = '<div class="p-2 text-center text-xs text-gray-400">Searching...</div>';
+            modalResults.classList.remove('hidden');
+
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, full_name, student_id')
+                .or(`full_name.ilike.%${q}%,student_id.ilike.%${q}%`)
+                .limit(5);
+
+            if (!users || users.length === 0) {
+                modalResults.innerHTML = '<div class="p-2 text-center text-xs text-red-500">No student found</div>';
+                return;
+            }
+
+            modalResults.innerHTML = users.map(u => `
+                <div class="p-3 hover:bg-blue-50 cursor-pointer border-b last:border-0 border-gray-50" 
+                     onclick="document.getElementById('pl-user-id').value='${u.id}'; 
+                              document.getElementById('pl-user-search').value='${u.full_name} (${u.student_id})'; 
+                              document.getElementById('pl-search-results').classList.add('hidden');
+                              document.getElementById('pl-clear-user').classList.remove('hidden');">
+                    <div class="font-bold text-sm text-gray-800">${u.full_name}</div>
+                    <div class="text-xs text-gray-500">${u.student_id}</div>
+                </div>
+            `).join('');
+        }, 300);
+    });
+
+    // Clear Button Logic
+    clearBtn.addEventListener('click', () => {
+        modalInput.value = '';
+        hiddenIdInput.value = '';
+        clearBtn.classList.add('hidden');
+        modalResults.classList.add('hidden');
+        modalInput.focus();
+    });
+
+    // Close Dropdown on outside click
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#pl-user-search') && !e.target.closest('#pl-search-results')) {
+            modalResults.classList.add('hidden');
+        }
+    });
+
+    // Calculation Logic
     const weightInput = document.getElementById('pl-weight');
     const typeInput = document.getElementById('pl-type');
-    
     const updateCalc = () => {
         const w = parseFloat(weightInput.value) || 0;
         const type = typeInput.value;
@@ -367,26 +382,29 @@ window.openLogModal = async (preSelectedId = null) => {
         document.getElementById('calc-points').textContent = Math.ceil(w * 100);
         document.getElementById('calc-co2').textContent = (w * co2Rate).toFixed(2) + ' kg';
     };
-
     weightInput.addEventListener('input', updateCalc);
     typeInput.addEventListener('change', updateCalc);
 
-    // Submit Logic
+    // Form Submit
     document.getElementById('plastic-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const userId = document.getElementById('pl-user-id').value;
+        if (!userId) {
+            alert("Please search and select a student first.");
+            return;
+        }
+
         const btn = e.target.querySelector('button[type="submit"]');
         btn.disabled = true; btn.innerText = 'Submitting...';
 
         try {
             let imageUrl = null;
             const fileInput = document.getElementById('pl-file');
-            if (fileInput.files.length > 0) {
-                btn.innerText = 'Uploading Image...';
-                imageUrl = await uploadToCloudinary(fileInput.files[0]);
-            }
+            if (fileInput.files.length > 0) imageUrl = await uploadToCloudinary(fileInput.files[0]);
 
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
             const isAutoVerify = document.getElementById('pl-verify').checked;
-            const userId = document.getElementById('pl-user').value;
 
             const payload = {
                 user_id: userId,
@@ -404,7 +422,6 @@ window.openLogModal = async (preSelectedId = null) => {
             if (error) throw error;
 
             closeModal();
-            // Refresh logs for the currently selected user (or all if none selected)
             loadLogs(currentSelectedUser?.id || null);
 
         } catch (err) {
@@ -419,13 +436,8 @@ window.verifyLog = async (logId, weight, type) => {
     if (!confirm(`Confirm verification of ${weight}kg ${type}? Points will be awarded.`)) return;
     const { data: { user } } = await supabase.auth.getUser();
     const { data: admin } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
-
-    const { error } = await supabase
-        .from('plastic_submissions')
-        .update({ status: 'verified', verified_by: admin?.id, verified_at: new Date().toISOString() })
-        .eq('id', logId);
-
-    if (error) alert('Verification failed: ' + error.message);
+    const { error } = await supabase.from('plastic_submissions').update({ status: 'verified', verified_by: admin?.id, verified_at: new Date().toISOString() }).eq('id', logId);
+    if (error) alert('Error: ' + error.message);
     else loadLogs(currentSelectedUser?.id || null);
 };
 
