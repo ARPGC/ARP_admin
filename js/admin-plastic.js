@@ -58,6 +58,11 @@ export const renderPlasticLogs = async (container) => {
 
     if(window.lucide) window.lucide.createIcons();
 
+    // Enter Key Search Support
+    document.getElementById('pl-search').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') loadLogs();
+    });
+
     // Initial Load
     loadLogs();
 };
@@ -72,15 +77,15 @@ window.loadLogs = async (isRefresh = false) => {
 
     tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto"></div></td></tr>`;
 
-    // FIX 1: Default Query - Explicitly use 'users!user_id' to resolve ambiguity
+    // 1. Base Selection (Explicitly use users!user_id to fix ambiguity)
     let dbQuery = supabase
         .from('plastic_submissions')
         .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id(full_name, student_id)')
         .order('created_at', { ascending: false });
 
-    // SEARCH LOGIC
+    // 2. Search Logic (Queries ALL records if search is active)
     if (query) {
-        // FIX 2: Search Query - Use 'users!user_id!inner' to filter AND resolve ambiguity
+        // Use !inner to force filtering on the joined table
         dbQuery = supabase
             .from('plastic_submissions')
             .select('id, weight_kg, plastic_type, status, created_at, submission_url, users!user_id!inner(full_name, student_id)')
@@ -89,9 +94,9 @@ window.loadLogs = async (isRefresh = false) => {
             
         document.getElementById('log-count-info').textContent = `Search results for "${query}"`;
     } else {
-        // Normal load (limit 50)
+        // If NO search, limit to recent 50 for speed
         dbQuery = dbQuery.limit(50);
-        document.getElementById('log-count-info').textContent = "Showing recent 50 entries (Search to find older logs)";
+        document.getElementById('log-count-info').textContent = "Showing recent 50 entries (Search to access older logs)";
     }
 
     const { data: logs, error } = await dbQuery;
@@ -103,7 +108,7 @@ window.loadLogs = async (isRefresh = false) => {
     }
 
     if (!logs || logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400 italic">No logs found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400 italic">No logs found matching your criteria.</td></tr>`;
         return;
     }
 
@@ -154,14 +159,14 @@ window.loadLogs = async (isRefresh = false) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- MODAL & ACTION FUNCTIONS ---
+// --- MODAL & ACTION FUNCTIONS (Kept same as before) ---
 window.openLogModal = async () => {
     // 1. Fetch Admin ID
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', currentUser.id).single();
 
-    // 2. Fetch Users (Limit 100 for dropdown performance)
-    const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name').limit(100);
+    // 2. Fetch Users (Sorted)
+    const { data: users } = await supabase.from('users').select('id, full_name, student_id').order('full_name');
 
     const html = `
         <div class="p-6 h-full flex flex-col relative">
