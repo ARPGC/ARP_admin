@@ -5,7 +5,7 @@ const PLASTIC_TYPES = {
     'PET': 1.60, 'HDPE': 1.25, 'PVC': 0.90, 'LDPE': 1.10, 'PP': 1.45, 'PS': 1.15, 'Other': 0.75
 };
 
-// Global State
+// Global State to track selected user in the main view
 let currentSelectedUser = null; 
 
 export const renderPlasticLogs = async (container) => {
@@ -102,7 +102,7 @@ export const renderPlasticLogs = async (container) => {
     loadLogs(null);
 };
 
-// --- HELPER: SEARCH FUNCTION ---
+// --- HELPER: SEARCH FUNCTION (Main Page) ---
 const performUserSearch = async (query) => {
     const dropdown = document.getElementById('search-dropdown');
     dropdown.innerHTML = '<div class="p-4 text-center text-gray-400 text-xs">Searching database...</div>';
@@ -220,18 +220,19 @@ window.loadLogs = async (specificUserId = null) => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- MODAL WITH SEARCH BAR ---
+// --- NEW MODAL WITH MANUAL SEARCH ---
 window.openLogModal = async (preSelectedId = null) => {
-    // Determine pre-filled user (if any)
+    // 1. Check if we have a pre-selected user
     const targetId = preSelectedId || currentSelectedUser?.id;
     let targetName = "";
     
-    // If we have a target ID, fetch their name quickly to pre-fill the input
+    // 2. If pre-selected, fetch their name so we can show it
     if (targetId) {
         const { data } = await supabase.from('users').select('full_name, student_id').eq('id', targetId).single();
         if (data) targetName = `${data.full_name} (${data.student_id})`;
     }
 
+    // 3. Render Modal (Notice the SEARCH BAR replaces the old <select>)
     const html = `
         <div class="p-6 h-full flex flex-col relative">
             <div class="flex justify-between items-center mb-6">
@@ -244,10 +245,11 @@ window.openLogModal = async (preSelectedId = null) => {
                 <div class="relative">
                     <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Select Student</label>
                     <input type="hidden" id="pl-user-id" value="${targetId || ''}" required>
+                    
                     <div class="relative">
                         <input type="text" id="pl-user-search" 
-                            class="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-bold text-gray-800"
-                            placeholder="Type Name or ID..." 
+                            class="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-bold text-gray-800 placeholder-gray-400"
+                            placeholder="Type Name or ID to search..." 
                             value="${targetName}" 
                             autocomplete="off">
                         <i data-lucide="search" class="absolute left-3 top-3.5 w-4 h-4 text-gray-400"></i>
@@ -307,19 +309,19 @@ window.openLogModal = async (preSelectedId = null) => {
     openModal(html);
     if(window.lucide) window.lucide.createIcons();
 
-    // --- SETUP MODAL SEARCH LOGIC ---
+    // --- MODAL SEARCH LOGIC ---
     const modalInput = document.getElementById('pl-user-search');
     const modalResults = document.getElementById('pl-search-results');
     const hiddenIdInput = document.getElementById('pl-user-id');
     const clearBtn = document.getElementById('pl-clear-user');
     let modalDebounce;
 
-    // Search Handler
+    // Listen for typing
     modalInput.addEventListener('input', (e) => {
         clearTimeout(modalDebounce);
         const q = e.target.value.trim();
         
-        // Reset ID if user modifies text
+        // Reset ID (because user changed the text)
         hiddenIdInput.value = ''; 
         clearBtn.classList.add('hidden');
 
@@ -328,6 +330,7 @@ window.openLogModal = async (preSelectedId = null) => {
             return;
         }
 
+        // Wait 300ms before calling Database
         modalDebounce = setTimeout(async () => {
             modalResults.innerHTML = '<div class="p-2 text-center text-xs text-gray-400">Searching...</div>';
             modalResults.classList.remove('hidden');
@@ -343,6 +346,7 @@ window.openLogModal = async (preSelectedId = null) => {
                 return;
             }
 
+            // Show results
             modalResults.innerHTML = users.map(u => `
                 <div class="p-3 hover:bg-blue-50 cursor-pointer border-b last:border-0 border-gray-50" 
                      onclick="document.getElementById('pl-user-id').value='${u.id}'; 
@@ -365,7 +369,7 @@ window.openLogModal = async (preSelectedId = null) => {
         modalInput.focus();
     });
 
-    // Close Dropdown on outside click
+    // Close Results on Outside Click
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#pl-user-search') && !e.target.closest('#pl-search-results')) {
             modalResults.classList.add('hidden');
@@ -385,7 +389,7 @@ window.openLogModal = async (preSelectedId = null) => {
     weightInput.addEventListener('input', updateCalc);
     typeInput.addEventListener('change', updateCalc);
 
-    // Form Submit
+    // Form Submit Logic
     document.getElementById('plastic-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const userId = document.getElementById('pl-user-id').value;
