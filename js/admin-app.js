@@ -12,6 +12,7 @@ import { renderPlasticLogs } from './admin-plastic.js';
 import { renderRevoke } from './admin-revoke.js';     
 import { renderResetPwd } from './admin-reset-pwd.js'; 
 import { renderPromo } from './admin-promo.js'; // <--- NEW IMPORT
+import { renderRedemptions } from './admin-redemptions.js';
 
 // --- Global Auth Check ---
 const checkAdminAuth = async () => {
