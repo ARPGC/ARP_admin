@@ -11,8 +11,8 @@ import { renderCodes } from './admin-codes.js';
 import { renderPlasticLogs } from './admin-plastic.js'; 
 import { renderRevoke } from './admin-revoke.js';     
 import { renderResetPwd } from './admin-reset-pwd.js'; 
-import { renderPromo } from './admin-promo.js'; // <--- NEW IMPORT
-import { renderRedemptions } from './admin-redemptions.js';
+import { renderPromo } from './admin-promo.js';
+import { renderRedemptions } from './admin-redemptions.js'; // <--- NEW IMPORT
 
 // --- Global Auth Check ---
 const checkAdminAuth = async () => {
@@ -57,6 +57,7 @@ window.loadView = (view) => {
 
     // Update Sidebar Active State
     document.querySelectorAll('.nav-btn').forEach(btn => {
+        // Check if the button's onclick attribute contains the current view name
         if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${view}'`)) {
             btn.classList.add('bg-gray-800', 'text-white');
             btn.classList.remove('text-gray-300');
@@ -119,15 +120,15 @@ window.loadView = (view) => {
                 renderResetPwd(container); 
                 break;
 
-            case 'promo': // <--- NEW CASE
+            case 'promo': 
                 if(title) title.textContent = 'Give Promotional Points'; 
                 renderPromo(container); 
                 break;
 
-                case 'redemptions': 
-    if(title) title.textContent = 'Points Redeemed'; 
-    renderRedemptions(container); 
-    break;
+            case 'redemptions': // <--- NEW CASE ADDED
+                if(title) title.textContent = 'Points Redeemed History'; 
+                renderRedemptions(container); 
+                break;
                 
             default: 
                 renderDashboard(container);
