@@ -122,6 +122,11 @@ window.loadView = (view) => {
                 if(title) title.textContent = 'Give Promotional Points'; 
                 renderPromo(container); 
                 break;
+
+                case 'redemptions': 
+    if(title) title.textContent = 'Points Redeemed'; 
+    renderRedemptions(container); 
+    break;
                 
             default: 
                 renderDashboard(container);
