@@ -1,347 +1,350 @@
 import { supabase } from './supabase-client.js';
 
-const TICK_ICONS = {
-    blue: 'https://i.ibb.co/kgJpMCHr/blue.png',
-    silver: 'https://i.ibb.co/gLJLF9Z2/silver.png',
-    gold: 'https://i.ibb.co/Q2C7MrM/gold.png',
-    black: 'https://i.ibb.co/zVNSNzrK/black.png',
-    green: 'https://i.ibb.co/SXGL4Nq0/green.png'
+// Global state to hold the currently viewed user
+let currentUser = null;
+
+export const renderUsers = (container) => {
+    container.innerHTML = `
+        <div class="max-w-5xl mx-auto h-full flex flex-col">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+                <div class="mb-4">
+                    <h3 class="font-bold text-xl text-gray-800">User Management</h3>
+                    <p class="text-xs text-gray-500">Search and manage student profiles, passwords, and points.</p>
+                </div>
+
+                <div class="relative">
+                    <div class="flex items-center border-2 border-gray-200 rounded-xl focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-50 transition-all bg-gray-50 overflow-hidden">
+                        <div class="pl-4 text-gray-400"><i data-lucide="search" class="w-5 h-5"></i></div>
+                        <input type="text" id="user-mgmt-search" autocomplete="off"
+                            placeholder="Search by Student Name, ID, or Email..." 
+                            class="w-full p-4 bg-transparent border-none focus:ring-0 text-gray-800 font-medium placeholder-gray-400 outline-none">
+                        
+                        <button id="clear-mgmt-search" class="hidden px-4 text-gray-400 hover:text-red-500 transition" onclick="clearUserSearch()">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="user-mgmt-results" class="hidden absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 max-h-80 overflow-y-auto z-50 divide-y divide-gray-50"></div>
+                </div>
+            </div>
+
+            <div id="user-profile-view" class="hidden flex-grow space-y-6 animate-fade-in-up">
+                
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="h-32 bg-gradient-to-r from-gray-800 to-gray-900 relative">
+                        <div class="absolute bottom-0 left-8 transform translate-y-1/2">
+                            <img id="u-img" src="" class="w-24 h-24 rounded-full border-4 border-white shadow-md bg-white object-cover">
+                        </div>
+                    </div>
+                    <div class="pt-14 pb-8 px-8">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h2 id="u-name" class="text-2xl font-bold text-gray-900"></h2>
+                                <div class="flex items-center gap-2 mt-1 text-gray-500 text-sm">
+                                    <span id="u-id" class="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-bold"></span>
+                                    <span>•</span>
+                                    <span id="u-course" class="uppercase font-bold tracking-wide"></span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-gray-400 uppercase font-bold tracking-wider">Current Balance</p>
+                                <p id="u-points" class="text-4xl font-black text-brand-600"></p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 pt-8 border-t border-gray-100">
+                            <div>
+                                <p class="text-xs text-gray-400 font-bold uppercase mb-1">Email Address</p>
+                                <p id="u-email" class="text-sm font-medium text-gray-800 truncate"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 font-bold uppercase mb-1">Phone Number</p>
+                                <p id="u-mobile" class="text-sm font-medium text-gray-800"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 font-bold uppercase mb-1">Joined Date</p>
+                                <p id="u-joined" class="text-sm font-medium text-gray-800"></p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 bg-red-50 border border-red-100 rounded-lg p-4 flex justify-between items-center">
+                            <div>
+                                <p class="text-xs text-red-500 font-bold uppercase mb-1 flex items-center gap-1">
+                                    <i data-lucide="lock" class="w-3 h-3"></i> Current Password (Reference)
+                                </p>
+                                <p id="u-pwd-plain" class="text-lg font-mono font-bold text-red-700 tracking-wider">••••••••</p>
+                            </div>
+                            <button onclick="togglePasswordVisibility()" class="text-xs font-bold text-red-600 hover:text-red-800 underline">
+                                Show / Hide
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    
+                    <button onclick="triggerQuickAction('promo')" class="p-5 bg-white border border-green-100 rounded-xl shadow-sm hover:shadow-md hover:border-green-300 transition-all text-left group">
+                        <div class="w-10 h-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-3 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                            <i data-lucide="gift" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-800 group-hover:text-green-700">Give Points</h4>
+                        <p class="text-xs text-gray-400 mt-1">Reward this student</p>
+                    </button>
+
+                    <button onclick="triggerQuickAction('revoke')" class="p-5 bg-white border border-red-100 rounded-xl shadow-sm hover:shadow-md hover:border-red-300 transition-all text-left group">
+                        <div class="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-3 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                            <i data-lucide="minus-circle" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-800 group-hover:text-red-700">Revoke Points</h4>
+                        <p class="text-xs text-gray-400 mt-1">Deduct balance</p>
+                    </button>
+
+                    <button onclick="triggerQuickAction('history')" class="p-5 bg-white border border-blue-100 rounded-xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left group">
+                        <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                            <i data-lucide="history" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-800 group-hover:text-blue-700">View History</h4>
+                        <p class="text-xs text-gray-400 mt-1">Check logs & audits</p>
+                    </button>
+
+                    <button onclick="openResetModal()" class="p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-gray-400 transition-all text-left group">
+                        <div class="w-10 h-10 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center mb-3 group-hover:bg-gray-800 group-hover:text-white transition-colors">
+                            <i data-lucide="key" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-800">Reset Password</h4>
+                        <p class="text-xs text-gray-400 mt-1">Update login creds</p>
+                    </button>
+
+                </div>
+            </div>
+
+            <div id="user-empty-state" class="flex-grow flex flex-col items-center justify-center text-center p-12 opacity-50">
+                <div class="bg-gray-100 p-4 rounded-full mb-4">
+                    <i data-lucide="users" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <p class="text-gray-500 font-medium">Search for a student above to view details.</p>
+            </div>
+        </div>
+    `;
+
+    if(window.lucide) window.lucide.createIcons();
+
+    // Attach Search Listeners
+    const searchInput = document.getElementById('user-mgmt-search');
+    let debounceTimer;
+
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        const q = e.target.value.trim();
+        const resultsEl = document.getElementById('user-mgmt-results');
+        const clearBtn = document.getElementById('clear-mgmt-search');
+
+        if(q.length > 0) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+
+        if(q.length < 2) {
+            resultsEl.classList.add('hidden');
+            return;
+        }
+
+        debounceTimer = setTimeout(() => performSearch(q), 300);
+    });
+
+    // Close Dropdown on outside click
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#user-mgmt-search') && !e.target.closest('#user-mgmt-results')) {
+            document.getElementById('user-mgmt-results').classList.add('hidden');
+        }
+    });
 };
 
-export const renderUsers = async (container) => {
+// --- SEARCH LOGIC ---
+const performSearch = async (query) => {
+    const resultsEl = document.getElementById('user-mgmt-results');
+    resultsEl.innerHTML = '<div class="p-4 text-center text-xs text-gray-400">Searching...</div>';
+    resultsEl.classList.remove('hidden');
+
     const { data: users, error } = await supabase
         .from('users')
         .select('*')
-        .order('created_at', {ascending: false});
+        .or(`full_name.ilike.%${query}%,student_id.ilike.%${query}%,email.ilike.%${query}%`)
+        .limit(10);
 
-    if(error) console.error(error);
+    if (error || !users || users.length === 0) {
+        resultsEl.innerHTML = '<div class="p-4 text-center text-xs text-gray-500 font-bold">No users found.</div>';
+        return;
+    }
 
-    container.innerHTML = `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                <h3 class="font-bold text-gray-700">User Management</h3>
-                <span class="text-sm text-gray-500">${users.length} Students Registered</span>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-gray-100 text-gray-600 uppercase font-bold text-xs">
-                        <tr>
-                            <th class="p-4">Student</th>
-                            <th class="p-4">Course</th>
-                            <th class="p-4">Points</th>
-                            <th class="p-4">Joined</th>
-                            <th class="p-4 text-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        ${users.map(u => {
-                            const tickUrl = u.tick_type ? TICK_ICONS[u.tick_type.toLowerCase()] : null;
-                            const tickHtml = tickUrl ? `<img src="${tickUrl}" class="w-4 h-4 inline ml-1 align-middle" title="${u.tick_type}">` : '';
-                            
-                            return `
-                            <tr class="hover:bg-gray-50 transition">
-                                <td class="p-4 flex items-center gap-3">
-                                    <img src="${u.profile_img_url || 'https://placehold.co/40'}" class="w-10 h-10 rounded-full object-cover border">
-                                    <div>
-                                        <div class="font-bold text-gray-900 flex items-center">${u.full_name} ${tickHtml}</div>
-                                        <div class="text-xs text-gray-500">${u.student_id}</div>
-                                    </div>
-                                </td>
-                                <td class="p-4 font-medium">${u.course}</td>
-                                <td class="p-4 font-bold text-green-600">${u.current_points}</td>
-                                <td class="p-4 text-gray-500">${new Date(u.joined_at).toLocaleDateString()}</td>
-                                <td class="p-4 text-center">
-                                    <button onclick="openUserDetail('${u.id}')" class="bg-brand-50 text-brand-600 border border-brand-200 px-3 py-1 rounded-lg text-xs font-bold hover:bg-brand-100 transition">View</button>
-                                </td>
-                            </tr>
-                        `}).join('')}
-                    </tbody>
-                </table>
+    resultsEl.innerHTML = users.map(u => `
+        <div onclick="loadUserProfile('${u.id}')" class="flex items-center gap-3 p-3 hover:bg-brand-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0">
+            <img src="${u.profile_img_url || 'https://placehold.co/100'}" class="w-10 h-10 rounded-full object-cover border border-gray-100">
+            <div>
+                <h4 class="font-bold text-gray-900 text-sm">${u.full_name}</h4>
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                    <span class="font-mono bg-gray-100 px-1 rounded">${u.student_id}</span>
+                    <span>${u.email}</span>
+                </div>
             </div>
         </div>
-    `;
+    `).join('');
 };
 
-// Global function to open user detail modal
-window.openUserDetail = async (userId) => {
-    const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
-    const { data: logs } = await supabase.from('user_activity_log').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(5);
-    const { data: txs } = await supabase.from('points_ledger').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(5);
+window.clearUserSearch = () => {
+    document.getElementById('user-mgmt-search').value = '';
+    document.getElementById('user-mgmt-results').classList.add('hidden');
+    document.getElementById('clear-mgmt-search').classList.add('hidden');
+    // Don't clear profile, let them keep looking at the last loaded user
+};
+
+// --- LOAD PROFILE ---
+window.loadUserProfile = async (userId) => {
+    // Hide Search Results
+    document.getElementById('user-mgmt-results').classList.add('hidden');
+    document.getElementById('user-empty-state').classList.add('hidden');
     
-    const tickUrl = user.tick_type ? TICK_ICONS[user.tick_type.toLowerCase()] : null;
+    const profileView = document.getElementById('user-profile-view');
+    profileView.classList.remove('hidden');
+    profileView.classList.add('opacity-50'); // Loading state
 
-    const modalHtml = `
-        <div class="relative flex flex-col h-full bg-gray-50">
-            <!-- Header -->
-            <div class="bg-white p-6 border-b border-gray-200 flex justify-between items-start sticky top-0 z-10">
-                <div class="flex gap-4">
-                    <img src="${user.profile_img_url || 'https://placehold.co/80'}" class="w-16 h-16 rounded-full border-2 border-gray-200 object-cover">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                            ${user.full_name} 
-                            ${tickUrl ? `<img src="${tickUrl}" class="w-5 h-5">` : ''}
-                        </h2>
-                        <p class="text-gray-500 text-sm">${user.student_id} | ${user.course}</p>
-                        <div class="mt-2 flex gap-2">
-                            <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">${user.current_points} pts</span>
-                            <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-bold capitalize">${user.role}</span>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100"><i data-lucide="x" class="w-6 h-6"></i></button>
+    const { data: user, error } = await supabase.from('users').select('*').eq('id', userId).single();
+
+    if(error || !user) {
+        alert("Error fetching user details.");
+        return;
+    }
+
+    currentUser = user; // Save to global state
+
+    // Populate UI
+    document.getElementById('u-img').src = user.profile_img_url || 'https://placehold.co/100';
+    document.getElementById('u-name').textContent = user.full_name;
+    document.getElementById('u-id').textContent = user.student_id;
+    document.getElementById('u-course').textContent = user.course || 'Student';
+    document.getElementById('u-points').textContent = user.current_points;
+    document.getElementById('u-email').textContent = user.email || '-';
+    document.getElementById('u-mobile').textContent = user.mobile || '-';
+    document.getElementById('u-joined').textContent = new Date(user.created_at).toLocaleDateString();
+    
+    // Password Logic
+    const pwdEl = document.getElementById('u-pwd-plain');
+    if(user.password_plain) {
+        pwdEl.dataset.plain = user.password_plain; // Store real pwd in data attribute
+        pwdEl.textContent = "••••••••"; // Default hidden
+    } else {
+        pwdEl.dataset.plain = "Not Set";
+        pwdEl.textContent = "Not Set";
+    }
+
+    // Done Loading
+    profileView.classList.remove('opacity-50');
+    
+    // Update Search Bar with Name for context
+    document.getElementById('user-mgmt-search').value = `${user.full_name} (${user.student_id})`;
+};
+
+window.togglePasswordVisibility = () => {
+    const el = document.getElementById('u-pwd-plain');
+    if(el.textContent === "••••••••") {
+        el.textContent = el.dataset.plain;
+        el.classList.add('text-red-600');
+    } else {
+        el.textContent = "••••••••";
+        el.classList.remove('text-red-600');
+    }
+};
+
+// --- QUICK ACTIONS HANDLER ---
+window.triggerQuickAction = (action) => {
+    if(!currentUser) return;
+
+    // Use sessionStorage to pass data to other views
+    sessionStorage.setItem('admin_target_user', JSON.stringify(currentUser));
+
+    switch(action) {
+        case 'promo':
+            // Go to Give Points page
+            loadView('promo');
+            // Give it a moment to load, then trigger the search/select logic
+            setTimeout(() => {
+                if(window.selectUserForPromo) { 
+                    // Assuming admin-promo.js exposes this, or we rely on sessionStorage check inside promo
+                    // For now, simpler: user has to search again OR we update promo.js to check storage
+                    // Let's assume we update promo.js to check sessionStorage on load!
+                }
+            }, 100);
+            break;
+            
+        case 'revoke':
+            loadView('revoke');
+            break;
+            
+        case 'history':
+            loadView('plastic');
+            // Logic to auto-filter logs is best handled by `admin-plastic.js` checking sessionStorage
+            break;
+    }
+};
+
+// --- RESET PASSWORD MODAL ---
+window.openResetModal = () => {
+    if(!currentUser) return;
+
+    const html = `
+        <div class="p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
+                <i data-lucide="key" class="w-6 h-6"></i>
             </div>
-
-            <!-- Scrollable Content -->
-            <div class="p-6 overflow-y-auto space-y-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Reset Password</h3>
+            <p class="text-sm text-gray-500 mb-6">Enter a new password for <span class="font-bold text-gray-800">${currentUser.full_name}</span>. This will update their login immediately.</p>
+            
+            <form id="reset-pwd-form" class="text-left space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">New Password</label>
+                    <input type="text" id="new-pwd" class="w-full p-3 border border-gray-300 rounded-lg font-bold text-gray-800 focus:ring-2 focus:ring-red-500 outline-none" placeholder="Enter new password" required minlength="6">
+                    <p class="text-xs text-gray-400 mt-1">Must be at least 6 characters.</p>
+                </div>
                 
-                <!-- Security Actions -->
-                <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <h4 class="font-bold text-gray-800">Security Actions</h4>
-                        <p class="text-xs text-gray-500">Reset user password to default 'student'.</p>
-                    </div>
-                    <button onclick="resetUserPassword('${user.id}')" class="bg-gray-800 hover:bg-black text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition">
-                        Reset Password
-                    </button>
-                </div>
-
-                <!-- Revoke Points Section (NEW) -->
-                <div class="bg-red-50 p-5 rounded-xl border border-red-100 shadow-sm">
-                    <h4 class="font-bold text-red-800 mb-2 flex items-center gap-2"><i data-lucide="alert-triangle" class="w-4 h-4"></i> Revoke Points</h4>
-                    <p class="text-xs text-red-600 mb-4">Deduct points earned by unethical means. This will be logged.</p>
-                    <div class="grid grid-cols-3 gap-3">
-                        <input type="number" id="revoke-amount-${user.id}" placeholder="Points (e.g. 50)" class="border border-red-200 p-2 rounded text-sm focus:ring-red-500 focus:border-red-500">
-                        <input type="text" id="revoke-reason-${user.id}" placeholder="Reason (e.g. Fake Photo)" class="border border-red-200 p-2 rounded text-sm focus:ring-red-500 focus:border-red-500 col-span-2">
-                    </div>
-                    <button onclick="revokeUserPoints('${user.id}')" class="w-full mt-3 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm transition">
-                        Revoke Points
-                    </button>
-                </div>
-
-                <!-- Transactions -->
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-gray-800">Recent Transactions</h3>
-                        <button onclick="viewAllTransactions('${user.id}', '${user.full_name}')" class="text-brand-600 text-xs font-bold hover:underline">View All</button>
-                    </div>
-                    <div class="space-y-3">
-                        ${txs.length > 0 ? txs.map(t => `
-                            <div class="flex justify-between items-center text-sm border-b border-gray-50 pb-2 last:border-0">
-                                <div>
-                                    <p class="font-medium text-gray-800">${t.description || 'Transaction'}</p>
-                                    <p class="text-xs text-gray-400">${new Date(t.created_at).toLocaleDateString()}</p>
-                                </div>
-                                <span class="${t.points_delta > 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                                    ${t.points_delta > 0 ? '+' : ''}${t.points_delta}
-                                </span>
-                            </div>
-                        `).join('') : '<p class="text-gray-400 text-xs">No recent transactions.</p>'}
-                    </div>
-                </div>
-
-                <!-- Activity Logs -->
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-gray-800">Activity Logs</h3>
-                        <button onclick="viewAllLogs('${user.id}', '${user.full_name}')" class="text-brand-600 text-xs font-bold hover:underline">View All</button>
-                    </div>
-                    <div class="space-y-3">
-                        ${logs.length > 0 ? logs.map(l => `
-                            <div class="flex justify-between items-center text-sm border-b border-gray-50 pb-2 last:border-0">
-                                <div>
-                                    <p class="font-medium text-gray-800">${l.action_type}</p>
-                                    <p class="text-xs text-gray-500 truncate max-w-[250px]">${l.description || '-'}</p>
-                                </div>
-                                <span class="text-xs text-gray-400">${new Date(l.created_at).toLocaleDateString()}</span>
-                            </div>
-                        `).join('') : '<p class="text-gray-400 text-xs">No activity logs.</p>'}
-                    </div>
-                </div>
-
-                <!-- User Data Raw -->
-                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 class="font-bold text-gray-800 mb-4">Edit Profile</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-xs font-bold text-gray-500">Profile Image URL</label>
-                            <input type="text" id="edit-avatar-${user.id}" value="${user.profile_img_url || ''}" class="w-full border p-2 rounded text-sm mt-1">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500">Tick Type</label>
-                            <select id="edit-tick-${user.id}" class="w-full border p-2 rounded text-sm mt-1">
-                                <option value="">None</option>
-                                <option value="blue" ${user.tick_type === 'blue' ? 'selected' : ''}>Blue</option>
-                                <option value="silver" ${user.tick_type === 'silver' ? 'selected' : ''}>Silver</option>
-                                <option value="gold" ${user.tick_type === 'gold' ? 'selected' : ''}>Gold</option>
-                                <option value="black" ${user.tick_type === 'black' ? 'selected' : ''}>Black</option>
-                                <option value="green" ${user.tick_type === 'green' ? 'selected' : ''}>Green</option>
-                            </select>
-                        </div>
-                        <div class="col-span-2">
-                            <button onclick="updateUserProfile('${user.id}')" class="w-full bg-gray-800 text-white py-2 rounded-lg text-sm font-bold hover:bg-gray-900">Save Changes</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                <button type="submit" class="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 shadow-md">
+                    Confirm Reset
+                </button>
+            </form>
         </div>
     `;
-    openModal(modalHtml);
-};
-
-// Revoke Points Function
-window.revokeUserPoints = async (userId) => {
-    const amount = document.getElementById(`revoke-amount-${userId}`).value;
-    const reason = document.getElementById(`revoke-reason-${userId}`).value;
-
-    if (!amount || amount <= 0) { alert("Please enter a valid amount."); return; }
-    if (!reason) { alert("Please enter a reason for revoking points."); return; }
-
-    if (!confirm(`Are you sure you want to revoke ${amount} points from this user?`)) return;
-
-    // 1. Get current Admin ID
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
-
-    // 2. Insert Negative Record into Points Ledger
-    // The SQL Trigger will automatically update the User's balance
-    const { error } = await supabase.from('points_ledger').insert({
-        user_id: userId,
-        source_type: 'admin_revoke',
-        points_delta: -1 * Math.abs(amount), // Ensure it's negative
-        description: `Revoked: ${reason}`,
-        created_by: adminUser?.id
-    });
-
-    if (error) {
-        alert("Error revoking points: " + error.message);
-    } else {
-        alert(`Successfully revoked ${amount} points.`);
-        openUserDetail(userId); // Refresh Modal
-        renderUsers(document.getElementById('view-container')); // Refresh List
-    }
-};
-
-// Reset Password Logic (Calls SQL RPC)
-window.resetUserPassword = async (userId) => {
-    if(!confirm("This will reset the Auth password to 'student'. Continue?")) return;
-
-    const { error } = await supabase.rpc('admin_reset_password', { 
-        target_user_id: userId, 
-        new_password: 'student' 
-    });
     
-    if(error) {
-        console.error(error);
-        alert("Error resetting password: " + error.message);
-    } else {
-        alert("Password successfully reset to 'student'.");
-    }
-};
-
-// Update Profile Logic
-window.updateUserProfile = async (userId) => {
-    const avatar = document.getElementById(`edit-avatar-${userId}`).value;
-    const tick = document.getElementById(`edit-tick-${userId}`).value || null;
-
-    const { error } = await supabase.from('users').update({
-        profile_img_url: avatar,
-        tick_type: tick
-    }).eq('id', userId);
-
-    if(error) alert('Error: ' + error.message);
-    else {
-        alert('Profile updated!');
-        openUserDetail(userId);
-        renderUsers(document.getElementById('view-container'));
-    }
-};
-
-// View All Transactions Screen
-window.viewAllTransactions = async (userId, userName) => {
-    const { data: txs } = await supabase
-        .from('points_ledger')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', {ascending: false});
-
-    const html = `
-        <div class="flex flex-col h-full bg-white">
-            <div class="p-4 border-b flex items-center gap-3 sticky top-0 bg-white z-10">
-                <button onclick="openUserDetail('${userId}')" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-                <div>
-                    <h3 class="font-bold text-lg">Transactions</h3>
-                    <p class="text-xs text-gray-500">for ${userName}</p>
-                </div>
-            </div>
-            <div class="flex-grow overflow-y-auto p-4">
-                <div class="border rounded-lg overflow-hidden">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50 border-b">
-                            <tr>
-                                <th class="p-3 text-left">Date</th>
-                                <th class="p-3 text-left">Description</th>
-                                <th class="p-3 text-right">Points</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y">
-                            ${txs.map(t => `
-                                <tr>
-                                    <td class="p-3 text-gray-500 whitespace-nowrap">${new Date(t.created_at).toLocaleString()}</td>
-                                    <td class="p-3 font-medium text-gray-800">${t.description || '-'}</td>
-                                    <td class="p-3 text-right font-bold ${t.points_delta > 0 ? 'text-green-600' : 'text-red-600'}">
-                                        ${t.points_delta > 0 ? '+' : ''}${t.points_delta}
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
     openModal(html);
-};
+    
+    document.getElementById('reset-pwd-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        const newPwd = document.getElementById('new-pwd').value.trim();
 
-// View All Logs Screen
-window.viewAllLogs = async (userId, userName) => {
-    const { data: logs } = await supabase
-        .from('user_activity_log')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', {ascending: false});
+        if(newPwd.length < 6) {
+            alert("Password too short.");
+            return;
+        }
 
-    const html = `
-        <div class="flex flex-col h-full bg-white">
-            <div class="p-4 border-b flex items-center gap-3 sticky top-0 bg-white z-10">
-                <button onclick="openUserDetail('${userId}')" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-                <div>
-                    <h3 class="font-bold text-lg">Activity Logs</h3>
-                    <p class="text-xs text-gray-500">for ${userName}</p>
-                </div>
-            </div>
-            <div class="flex-grow overflow-y-auto p-4">
-                <div class="border rounded-lg overflow-hidden">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50 border-b">
-                            <tr>
-                                <th class="p-3 text-left">Time</th>
-                                <th class="p-3 text-left">Action</th>
-                                <th class="p-3 text-left">Details</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y">
-                            ${logs.map(l => `
-                                <tr>
-                                    <td class="p-3 text-gray-500 whitespace-nowrap">${new Date(l.created_at).toLocaleString()}</td>
-                                    <td class="p-3 font-bold text-gray-800">${l.action_type}</td>
-                                    <td class="p-3 text-gray-600">${l.description || '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
-    openModal(html);
+        btn.disabled = true;
+        btn.innerText = "Updating...";
+
+        try {
+            // Call the SQL Function we created
+            const { error } = await supabase.rpc('admin_reset_password', {
+                p_target_user_id: currentUser.id,
+                p_new_password: newPwd
+            });
+
+            if (error) throw error;
+
+            alert("Success! Password has been updated.");
+            closeModal();
+            // Refresh Profile to show new password in reference field
+            loadUserProfile(currentUser.id);
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed: " + err.message);
+            btn.disabled = false;
+            btn.innerText = "Confirm Reset";
+        }
+    });
 };
