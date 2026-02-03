@@ -6,131 +6,153 @@
     <title>EcoCampus Admin Dashboard</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
-                    colors: { 
-                        brand: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 900: '#14532d' } 
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        }
                     }
                 }
             }
         }
     </script>
     <style>
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        #modal-overlay { overflow-y: auto; }
-        #modal-overlay:not(.hidden) { display: flex; align-items: center; justify-content: center; }
-        #modal-content { max-height: 90vh; width: 100%; max-width: 64rem; display: flex; flex-direction: column; margin: 2rem auto; overflow: hidden; }
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 h-screen flex overflow-hidden font-sans antialiased">
+<body class="bg-gray-50 text-gray-800 font-sans h-screen flex overflow-hidden">
 
-    <aside class="w-64 bg-gray-900 text-white flex flex-col flex-shrink-0 transition-all duration-300">
-        <div class="p-6 border-b border-gray-800 flex items-center gap-3">
-            <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-brand-900/50">
-                <i data-lucide="leaf" class="text-white w-5 h-5"></i>
+    <aside class="w-64 bg-gray-900 text-white flex flex-col flex-shrink-0 transition-all duration-300 z-20">
+        <div class="h-16 flex items-center px-6 border-b border-gray-800 bg-gray-900">
+            <div class="flex items-center gap-2 text-brand-500">
+                <i data-lucide="leaf" class="w-6 h-6 fill-current"></i>
+                <span class="text-xl font-bold tracking-tight text-white">EcoAdmin</span>
             </div>
-            <h1 class="text-xl font-bold tracking-tight">EcoAdmin</h1>
         </div>
 
-        <nav class="flex-1 overflow-y-auto p-4 space-y-1">
-            <button onclick="loadView('dashboard')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i>Dashboard
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            
+            <button onclick="loadView('dashboard')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3 group-hover:text-brand-500 transition-colors"></i>Dashboard
             </button>
 
-            <div class="pt-4 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider px-3">Management</div>      
-<button onclick="loadView('redemptions')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-    <i data-lucide="trending-down" class="w-5 h-5 mr-3"></i>Redeemed History
-</button>
-            <button onclick="loadView('revoke')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="shield-alert" class="w-5 h-5 mr-3"></i>Revoke Points
+            <div class="pt-4 pb-1 pl-3 text-xs font-bold text-gray-500 uppercase tracking-wider">User Management</div>
+            
+            <button onclick="loadView('users')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="users" class="w-5 h-5 mr-3 group-hover:text-blue-400 transition-colors"></i>All Users
             </button>
 
-            <button onclick="loadView('promo')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-    <i data-lucide="gift" class="w-5 h-5 mr-3"></i>Give Points
-</button>
-
-            <button onclick="loadView('reset-pwd')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-               <i data-lucide="lock" class="w-5 h-5 mr-3"></i>Reset Password
+            <button onclick="loadView('revoke')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="minus-circle" class="w-5 h-5 mr-3 group-hover:text-red-400 transition-colors"></i>Revoke Points
             </button>
             
-            <button onclick="loadView('plastic')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="recycle" class="w-5 h-5 mr-3"></i>Plastic Logs
-            </button>
-           
-            <button onclick="loadView('events')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>Events & RSVP
+            <button onclick="loadView('reset-pwd')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="key" class="w-5 h-5 mr-3 group-hover:text-yellow-400 transition-colors"></i>Reset Password
             </button>
 
-            <div class="pt-4 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider px-3">Commerce</div>
+            <div class="pt-4 pb-1 pl-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Sustainability</div>
             
-            <button onclick="loadView('stores')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
+            <button onclick="loadView('plastic')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="recycle" class="w-5 h-5 mr-3 group-hover:text-green-400 transition-colors"></i>Plastic Logs
+            </button>
+
+            <div class="pt-4 pb-1 pl-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Commerce</div>
+            
+            <button onclick="loadView('stores')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
                 <i data-lucide="store" class="w-5 h-5 mr-3"></i>Stores
             </button>
 
-            <button onclick="loadView('products')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="shopping-bag" class="w-5 h-5 mr-3"></i>Products
-            </button>
-
-            <button onclick="loadView('orders')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="package" class="w-5 h-5 mr-3"></i>Orders
+            <button onclick="loadView('products')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="package" class="w-5 h-5 mr-3"></i>Products
             </button>
             
-            <button onclick="loadView('codes')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
+            <button onclick="loadView('orders')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="shopping-cart" class="w-5 h-5 mr-3"></i>Orders
+            </button>
+
+            <button onclick="loadView('redemptions')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="trending-down" class="w-5 h-5 mr-3 group-hover:text-orange-400 transition-colors"></i>Redeemed History
+            </button>
+
+            <div class="pt-4 pb-1 pl-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Engagement</div>
+            
+            <button onclick="loadView('events')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="calendar" class="w-5 h-5 mr-3"></i>Events & RSVP
+            </button>
+            
+            <button onclick="loadView('challenges')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="trophy" class="w-5 h-5 mr-3"></i>Challenges
+            </button>
+
+            <button onclick="loadView('promo')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
+                <i data-lucide="gift" class="w-5 h-5 mr-3 group-hover:text-purple-400 transition-colors"></i>Give Points
+            </button>
+
+            <button onclick="loadView('codes')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition group">
                 <i data-lucide="ticket" class="w-5 h-5 mr-3"></i>Redeem Codes
             </button>
 
-            <div class="pt-4 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider px-3">Engagement</div>
-            
-            <button onclick="loadView('challenges')" class="nav-btn w-full flex items-center p-3 rounded-lg hover:bg-gray-800 text-gray-300 hover:text-white transition">
-                <i data-lucide="camera" class="w-5 h-5 mr-3"></i>Challenges & Quiz
-            </button>
-            
         </nav>
 
-        <div class="p-4 border-t border-gray-800">
-            <button onclick="handleLogout()" class="w-full flex items-center justify-center p-2.5 rounded-lg bg-red-900/20 text-red-400 hover:bg-red-900/40 hover:text-red-300 transition font-medium text-sm">
-                <i data-lucide="log-out" class="w-4 h-4 mr-2"></i>Logout
-            </button>
+        <div class="p-4 border-t border-gray-800 bg-gray-900">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold">
+                    <i data-lucide="user" class="w-4 h-4 text-white"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p id="admin-name" class="text-sm font-medium text-white truncate">Loading...</p>
+                    <p class="text-xs text-gray-400">Super Admin</p>
+                </div>
+                <button onclick="handleLogout()" class="text-gray-400 hover:text-white">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
         </div>
     </aside>
 
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
-        <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-8 flex-shrink-0 shadow-sm z-20">
-            <h2 id="page-title" class="text-xl font-bold text-gray-800">Overview</h2>
-            <div class="flex items-center gap-4">
-                <div class="text-right hidden sm:block">
-                    <p id="admin-name" class="text-sm font-bold text-gray-900">Admin</p>
-                    <p class="text-xs text-green-600 font-medium">Super Admin</p>
-                </div>
-                <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200">
-                    <i data-lucide="user" class="text-gray-500"></i>
-                </div>
-            </div>
+        
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 md:hidden">
+            <div class="font-bold text-gray-800 text-lg">EcoCampus</div>
+            <button class="text-gray-600"><i data-lucide="menu" class="w-6 h-6"></i></button>
         </header>
 
-        <div id="view-container" class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <div id="view-container" class="flex-1 overflow-auto p-6 md:p-8">
             <div class="flex items-center justify-center h-full">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
             </div>
         </div>
     </main>
 
-    <div id="modal-overlay" class="fixed inset-0 bg-black/50 z-50 hidden backdrop-blur-sm">
-        <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all scale-95 opacity-0">
-        </div>
+    <div id="modal-overlay" class="fixed inset-0 z-50 hidden bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity">
+        <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden transform scale-95 opacity-0 transition-all duration-300">
+            </div>
     </div>
 
     <script type="module" src="js/admin-app.js"></script>
+    
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>
