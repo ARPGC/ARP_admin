@@ -12,7 +12,8 @@ import { renderPlasticLogs } from './admin-plastic.js';
 import { renderRevoke } from './admin-revoke.js';     
 import { renderResetPwd } from './admin-reset-pwd.js'; 
 import { renderPromo } from './admin-promo.js';
-import { renderRedemptions } from './admin-redemptions.js'; // <--- NEW IMPORT
+import { renderRedemptions } from './admin-redemptions.js';
+import { renderUsers } from './admin-users.js'; // <--- NEW IMPORT
 
 // --- Global Auth Check ---
 const checkAdminAuth = async () => {
@@ -75,6 +76,11 @@ window.loadView = (view) => {
                 renderDashboard(container); 
                 break;
             
+            case 'users': // <--- NEW CASE ADDED
+                if(title) title.textContent = 'User Management'; 
+                renderUsers(container); 
+                break;
+
             case 'events': 
                 if(title) title.textContent = 'Event Management'; 
                 renderEvents(container); 
@@ -125,7 +131,7 @@ window.loadView = (view) => {
                 renderPromo(container); 
                 break;
 
-            case 'redemptions': // <--- NEW CASE ADDED
+            case 'redemptions': 
                 if(title) title.textContent = 'Points Redeemed History'; 
                 renderRedemptions(container); 
                 break;
