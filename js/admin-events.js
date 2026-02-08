@@ -26,16 +26,16 @@ export const renderEvents = async (container) => {
     loadEvents();
 };
 
-// --- LOAD EVENTS (FIXED) ---
+// --- LOAD EVENTS (Fixed Schema) ---
 const loadEvents = async () => {
     const grid = document.getElementById('events-grid');
     if(!grid) return;
 
-    // FIX: Removed 'rsvp(count)' to prevent 400 Bad Request error
+    // FIX 1: Use 'start_at' instead of 'date' for sorting
     const { data: events, error } = await supabase
         .from('events')
         .select('*') 
-        .order('date', { ascending: true });
+        .order('start_at', { ascending: true });
 
     if (error) {
         console.error("Event Load Error:", error);
@@ -49,14 +49,18 @@ const loadEvents = async () => {
     }
 
     grid.innerHTML = events.map(evt => {
-        const date = new Date(evt.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-        const time = new Date(evt.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' });
-        // Removed RSVP count badge temporarily to ensure stability
+        // FIX 2: Map 'start_at' to Date object
+        const dateObj = new Date(evt.start_at);
+        const date = dateObj.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+        const time = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' });
         
+        // FIX 3: Use 'poster_url' instead of 'image_url'
+        const img = evt.poster_url || 'https://placehold.co/600x400?text=Event';
+
         return `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition group flex flex-col">
             <div class="h-32 bg-gray-100 relative">
-                <img src="${evt.image_url || 'https://placehold.co/600x400?text=Event'}" class="w-full h-full object-cover">
+                <img src="${img}" class="w-full h-full object-cover">
             </div>
             <div class="p-5 flex-grow">
                 <h4 class="font-bold text-gray-900 text-lg mb-1">${evt.title}</h4>
@@ -80,7 +84,7 @@ const loadEvents = async () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- VIEW ATTENDANCE MODAL (With PDF & Scroll) ---
+// --- VIEW ATTENDANCE MODAL (Fixed Table Name) ---
 window.viewAttendance = async (eventId, eventName) => {
     const loadingHtml = `
         <div class="p-12 text-center">
@@ -90,9 +94,9 @@ window.viewAttendance = async (eventId, eventName) => {
     `;
     window.openModal(loadingHtml);
 
-    // Fetch Attendees (This join usually works fine if foreign keys are set)
+    // FIX 4: Use 'event_attendance' table instead of 'rsvp'
     const { data: attendees, error } = await supabase
-        .from('rsvp')
+        .from('event_attendance')
         .select('status, users!inner(full_name, student_id, course)')
         .eq('event_id', eventId)
         .order('created_at', { ascending: true });
@@ -161,15 +165,15 @@ window.viewAttendance = async (eventId, eventName) => {
     }
 };
 
-// --- MARK PRESENT ---
+// --- MARK PRESENT (Fixed Table) ---
 window.markPresent = async (eventId, studentId) => {
     // 1. Get User ID
     const { data: user } = await supabase.from('users').select('id').eq('student_id', studentId).single();
     if(!user) return alert("User not found");
 
-    // 2. Update Status
+    // 2. Update Status in 'event_attendance'
     const { error } = await supabase
-        .from('rsvp')
+        .from('event_attendance')
         .update({ status: 'present' })
         .eq('event_id', eventId)
         .eq('user_id', user.id);
@@ -219,7 +223,7 @@ const downloadAttendancePDF = (eventName, attendees) => {
     doc.save(`${eventName.replace(/\s+/g, '_')}_Attendance.pdf`);
 };
 
-// --- CREATE & DELETE EVENTS (Unchanged) ---
+// --- CREATE EVENT (Fixed Payload) ---
 window.openEventModal = () => {
     const html = `
         <div class="p-6">
@@ -236,13 +240,18 @@ window.openEventModal = () => {
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Date</label>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Start Date & Time</label>
                         <input type="datetime-local" id="evt-date" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" required>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Points Reward</label>
-                        <input type="number" id="evt-points" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value="50">
+                        <input type="number" id="evt-points" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value="10">
                     </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Location</label>
+                    <input type="text" id="evt-loc" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" required>
                 </div>
 
                 <div>
@@ -251,7 +260,7 @@ window.openEventModal = () => {
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Image URL (Optional)</label>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Poster URL (Optional)</label>
                     <input type="url" id="evt-img" placeholder="https://..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
                 </div>
 
@@ -269,12 +278,20 @@ window.openEventModal = () => {
         const btn = e.target.querySelector('button');
         btn.disabled = true; btn.innerText = "Creating...";
 
+        const startAt = document.getElementById('evt-date').value;
+        // Auto-set end time to +2 hours
+        const endDate = new Date(startAt);
+        endDate.setHours(endDate.getHours() + 2);
+        
+        // FIX 5: Updated Payload to match DB Schema
         const payload = {
             title: document.getElementById('evt-title').value,
-            date: document.getElementById('evt-date').value,
             description: document.getElementById('evt-desc').value,
-            image_url: document.getElementById('evt-img').value,
-            points: parseInt(document.getElementById('evt-points').value),
+            start_at: new Date(startAt).toISOString(),
+            end_at: endDate.toISOString(),
+            location: document.getElementById('evt-loc').value,
+            points_reward: parseInt(document.getElementById('evt-points').value),
+            poster_url: document.getElementById('evt-img').value,
             created_by: (await supabase.auth.getUser()).data.user.id
         };
 
@@ -291,7 +308,7 @@ window.openEventModal = () => {
 };
 
 window.deleteEvent = async (id) => {
-    if(!confirm("Are you sure? This will delete the event and all RSVPs.")) return;
+    if(!confirm("Are you sure? This will delete the event and all records.")) return;
     const { error } = await supabase.from('events').delete().eq('id', id);
     if(!error) loadEvents();
 };
