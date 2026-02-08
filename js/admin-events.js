@@ -26,12 +26,12 @@ export const renderEvents = async (container) => {
     loadEvents();
 };
 
-// --- LOAD EVENTS (Fixed Schema) ---
+// --- LOAD EVENTS ---
 const loadEvents = async () => {
     const grid = document.getElementById('events-grid');
     if(!grid) return;
 
-    // FIX 1: Use 'start_at' instead of 'date' for sorting
+    // Fetch events sorted by start date
     const { data: events, error } = await supabase
         .from('events')
         .select('*') 
@@ -49,12 +49,9 @@ const loadEvents = async () => {
     }
 
     grid.innerHTML = events.map(evt => {
-        // FIX 2: Map 'start_at' to Date object
         const dateObj = new Date(evt.start_at);
         const date = dateObj.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
         const time = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' });
-        
-        // FIX 3: Use 'poster_url' instead of 'image_url'
         const img = evt.poster_url || 'https://placehold.co/600x400?text=Event';
 
         return `
@@ -84,7 +81,7 @@ const loadEvents = async () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- VIEW ATTENDANCE MODAL (Fixed Table Name) ---
+// --- VIEW ATTENDANCE MODAL (FIXED QUERY) ---
 window.viewAttendance = async (eventId, eventName) => {
     const loadingHtml = `
         <div class="p-12 text-center">
@@ -94,15 +91,16 @@ window.viewAttendance = async (eventId, eventName) => {
     `;
     window.openModal(loadingHtml);
 
-    // FIX 4: Use 'event_attendance' table instead of 'rsvp'
+    // FIX IS HERE: We use 'users!user_id' to tell Supabase explicitly which relationship to use
     const { data: attendees, error } = await supabase
         .from('event_attendance')
-        .select('status, users!inner(full_name, student_id, course)')
+        .select('status, users!user_id(full_name, student_id, course)')
         .eq('event_id', eventId)
         .order('created_at', { ascending: true });
 
     if (error) {
-        window.openModal(`<div class="p-8 text-center text-red-500 font-bold">Error: ${error.message}</div>`);
+        console.error(error);
+        window.openModal(`<div class="p-8 text-center text-red-500 font-bold">Error: ${error.message}<br><span class="text-xs font-normal text-gray-500">Check console for details.</span></div>`);
         return;
     }
 
@@ -165,7 +163,7 @@ window.viewAttendance = async (eventId, eventName) => {
     }
 };
 
-// --- MARK PRESENT (Fixed Table) ---
+// --- MARK PRESENT ---
 window.markPresent = async (eventId, studentId) => {
     // 1. Get User ID
     const { data: user } = await supabase.from('users').select('id').eq('student_id', studentId).single();
@@ -223,7 +221,7 @@ const downloadAttendancePDF = (eventName, attendees) => {
     doc.save(`${eventName.replace(/\s+/g, '_')}_Attendance.pdf`);
 };
 
-// --- CREATE EVENT (Fixed Payload) ---
+// --- CREATE EVENT ---
 window.openEventModal = () => {
     const html = `
         <div class="p-6">
@@ -279,11 +277,9 @@ window.openEventModal = () => {
         btn.disabled = true; btn.innerText = "Creating...";
 
         const startAt = document.getElementById('evt-date').value;
-        // Auto-set end time to +2 hours
         const endDate = new Date(startAt);
         endDate.setHours(endDate.getHours() + 2);
         
-        // FIX 5: Updated Payload to match DB Schema
         const payload = {
             title: document.getElementById('evt-title').value,
             description: document.getElementById('evt-desc').value,
