@@ -26,18 +26,20 @@ export const renderEvents = async (container) => {
     loadEvents();
 };
 
-// --- LOAD EVENTS ---
+// --- LOAD EVENTS (FIXED) ---
 const loadEvents = async () => {
     const grid = document.getElementById('events-grid');
     if(!grid) return;
 
+    // FIX: Removed 'rsvp(count)' to prevent 400 Bad Request error
     const { data: events, error } = await supabase
         .from('events')
-        .select('*, rsvp(count)') // Get count of RSVPs
+        .select('*') 
         .order('date', { ascending: true });
 
     if (error) {
-        grid.innerHTML = `<div class="col-span-full text-center text-red-500 font-bold">Error loading events</div>`;
+        console.error("Event Load Error:", error);
+        grid.innerHTML = `<div class="col-span-full text-center text-red-500 font-bold">Error loading events: ${error.message}</div>`;
         return;
     }
 
@@ -49,15 +51,12 @@ const loadEvents = async () => {
     grid.innerHTML = events.map(evt => {
         const date = new Date(evt.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
         const time = new Date(evt.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' });
-        const rsvpCount = evt.rsvp ? evt.rsvp[0].count : 0;
-
+        // Removed RSVP count badge temporarily to ensure stability
+        
         return `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition group flex flex-col">
             <div class="h-32 bg-gray-100 relative">
                 <img src="${evt.image_url || 'https://placehold.co/600x400?text=Event'}" class="w-full h-full object-cover">
-                <div class="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded text-xs font-bold shadow-sm">
-                    ${rsvpCount} Registered
-                </div>
             </div>
             <div class="p-5 flex-grow">
                 <h4 class="font-bold text-gray-900 text-lg mb-1">${evt.title}</h4>
@@ -81,9 +80,8 @@ const loadEvents = async () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- VIEW ATTENDANCE MODAL (SCROLLABLE & PDF FIX) ---
+// --- VIEW ATTENDANCE MODAL (With PDF & Scroll) ---
 window.viewAttendance = async (eventId, eventName) => {
-    // 1. Show Loading State
     const loadingHtml = `
         <div class="p-12 text-center">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-600 mx-auto mb-4"></div>
@@ -92,7 +90,7 @@ window.viewAttendance = async (eventId, eventName) => {
     `;
     window.openModal(loadingHtml);
 
-    // 2. Fetch Data
+    // Fetch Attendees (This join usually works fine if foreign keys are set)
     const { data: attendees, error } = await supabase
         .from('rsvp')
         .select('status, users!inner(full_name, student_id, course)')
@@ -106,8 +104,6 @@ window.viewAttendance = async (eventId, eventName) => {
 
     const presentCount = attendees.filter(a => a.status === 'present').length;
 
-    // 3. Render Modal Content
-    // NOTE: 'max-h-[60vh] overflow-y-auto' makes the list scrollable
     const html = `
         <div class="flex flex-col h-full max-h-[85vh]">
             <div class="p-6 border-b border-gray-100 flex justify-between items-start shrink-0">
@@ -158,23 +154,20 @@ window.viewAttendance = async (eventId, eventName) => {
     window.openModal(html);
     if(window.lucide) window.lucide.createIcons();
 
-    // 4. Attach PDF Listener
-    document.getElementById('btn-download-pdf').addEventListener('click', () => {
-        downloadAttendancePDF(eventName, attendees);
-    });
+    // Attach PDF Listener
+    const pdfBtn = document.getElementById('btn-download-pdf');
+    if(pdfBtn) {
+        pdfBtn.addEventListener('click', () => downloadAttendancePDF(eventName, attendees));
+    }
 };
 
-// --- MARK PRESENT LOGIC ---
+// --- MARK PRESENT ---
 window.markPresent = async (eventId, studentId) => {
-    // Note: We need user_id, but usually we have it from the join. 
-    // To be safe/fast, we'll assume we verify by student_id in a real app, 
-    // but here let's look up the UUID first or change the query.
-    // Simpler approach: Refresh just to update UI for now.
-    
-    // 1. Get User UUID from student_id (Mock logic for speed, usually done via RPC)
+    // 1. Get User ID
     const { data: user } = await supabase.from('users').select('id').eq('student_id', studentId).single();
     if(!user) return alert("User not found");
 
+    // 2. Update Status
     const { error } = await supabase
         .from('rsvp')
         .update({ status: 'present' })
@@ -183,35 +176,30 @@ window.markPresent = async (eventId, studentId) => {
 
     if (error) alert("Error updating status");
     else {
-        // Find the event name from the modal title to keep UX smooth
-        // Or just reload the modal
+        // Refresh Modal
         const titleEl = document.querySelector('#modal-content h3');
         const name = titleEl ? titleEl.innerText : 'Event';
-        viewAttendance(eventId, name); // Reload modal
+        viewAttendance(eventId, name);
     }
 };
 
-// --- PDF GENERATION ---
+// --- PDF GENERATOR ---
 const downloadAttendancePDF = (eventName, attendees) => {
-    // Check if library loaded
     if (!window.jspdf) {
-        alert("PDF library is loading... please try again in 3 seconds.");
+        alert("PDF library is loading... please wait.");
         return;
     }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    // Header
     doc.setFontSize(18);
     doc.text(eventName, 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
-    const dateStr = new Date().toLocaleDateString();
-    doc.text(`Attendance Report • Generated on ${dateStr}`, 14, 30);
+    doc.text(`Attendance Report • ${new Date().toLocaleDateString()}`, 14, 30);
 
-    // Table Data
     const tableData = attendees.map(a => [
         a.users.student_id,
         a.users.full_name,
@@ -219,21 +207,19 @@ const downloadAttendancePDF = (eventName, attendees) => {
         a.status.toUpperCase()
     ]);
 
-    // Generate Table
     doc.autoTable({
         head: [['ID', 'Name', 'Course', 'Status']],
         body: tableData,
         startY: 40,
         theme: 'grid',
-        headStyles: { fillColor: [22, 163, 74] }, // Brand Green
+        headStyles: { fillColor: [22, 163, 74] },
         styles: { fontSize: 10, cellPadding: 3 },
     });
 
-    // Save
     doc.save(`${eventName.replace(/\s+/g, '_')}_Attendance.pdf`);
 };
 
-// --- CREATE EVENT MODAL ---
+// --- CREATE & DELETE EVENTS (Unchanged) ---
 window.openEventModal = () => {
     const html = `
         <div class="p-6">
@@ -278,7 +264,6 @@ window.openEventModal = () => {
     window.openModal(html);
     if(window.lucide) window.lucide.createIcons();
 
-    // Handle Submit
     document.getElementById('create-event-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button');
