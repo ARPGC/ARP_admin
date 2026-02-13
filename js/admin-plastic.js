@@ -173,7 +173,7 @@ window.loadLogs = async (specificUserId = null) => {
         dbQuery = dbQuery.eq('user_id', specificUserId);
         document.getElementById('logs-status-text').textContent = "Displaying complete history for selected student";
     } else {
-        dbQuery = dbQuery.limit(50);
+        dbQuery = dbQuery.limit(100);
         document.getElementById('logs-status-text').textContent = "Showing recent 50 entries across all students";
     }
 
