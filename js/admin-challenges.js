@@ -1,6 +1,6 @@
 import { supabase } from './supabase-client.js';
 
-// Global state for this module
+// Global state
 let pendingSubmissions = [];
 let currentSubmissionIndex = 0;
 
@@ -60,13 +60,11 @@ export const renderChallenges = async (container) => {
                 <div id="challenges-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
                     </div>
             </div>
-
         </div>
     `;
 
     if(window.lucide) window.lucide.createIcons();
 
-    // Initial Load
     fetchPendingSubmissions();
     fetchActiveChallenges();
 };
@@ -80,7 +78,7 @@ window.switchTab = (tab) => {
 
     if (tab === 'review') {
         reviewView.classList.remove('hidden');
-        reviewView.classList.add('flex'); // Important for flex layout
+        reviewView.classList.add('flex');
         manageView.classList.add('hidden');
         
         reviewTab.classList.add('text-brand-600', 'border-brand-600');
@@ -102,25 +100,27 @@ window.switchTab = (tab) => {
 };
 
 // ==========================================
-// 1. REVIEW QUEUE LOGIC (The New Workflow)
+// 1. REVIEW QUEUE LOGIC
 // ==========================================
 
 const fetchPendingSubmissions = async () => {
     const listEl = document.getElementById('submission-list');
     
-    // Explicit JOIN to avoid "ambiguous" errors
+    // FIX: Removed '!challenge_id' from challenges to fix 400 Bad Request
+    // Kept '!user_id' because user relationship is ambiguous (created_by, admin_id, etc.)
     const { data, error } = await supabase
         .from('challenge_submissions')
         .select(`
             id, submission_url, status, created_at, points_awarded,
-            challenges!challenge_id ( title, points ),
+            challenges ( title, points ),
             users!user_id ( full_name, student_id, course )
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: true });
 
     if (error) {
-        listEl.innerHTML = `<div class="p-4 text-center text-red-500 text-sm">Error loading queue</div>`;
+        console.error("Queue Load Error:", error);
+        listEl.innerHTML = `<div class="p-4 text-center text-red-500 text-sm">Error loading queue. Check console.</div>`;
         return;
     }
 
@@ -140,7 +140,6 @@ const fetchPendingSubmissions = async () => {
     }
 
     renderSubmissionList();
-    // Auto-select first item
     selectSubmission(0);
 };
 
@@ -156,9 +155,9 @@ const renderSubmissionList = () => {
         <div onclick="selectSubmission(${index})" id="sub-item-${index}" class="p-4 cursor-pointer hover:bg-blue-50 transition border-l-4 border-transparent hover:border-blue-400 group">
             <div class="flex justify-between items-start mb-1">
                 <span class="font-bold text-gray-800 text-sm truncate w-3/4">${sub.users?.full_name || 'Unknown'}</span>
-                <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded">${sub.users?.student_id}</span>
+                <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded">${sub.users?.student_id || '-'}</span>
             </div>
-            <p class="text-xs text-brand-600 font-medium mb-1 truncate">${sub.challenges?.title}</p>
+            <p class="text-xs text-brand-600 font-medium mb-1 truncate">${sub.challenges?.title || 'Untitled Challenge'}</p>
             <p class="text-[10px] text-gray-400">${new Date(sub.created_at).toLocaleDateString()}</p>
         </div>
     `).join('');
@@ -168,7 +167,6 @@ window.selectSubmission = (index) => {
     currentSubmissionIndex = index;
     const sub = pendingSubmissions[index];
 
-    // Highlight active item in list
     document.querySelectorAll('#submission-list > div').forEach(el => {
         el.classList.remove('bg-blue-50', 'border-blue-600');
         el.classList.add('border-transparent');
@@ -180,7 +178,6 @@ window.selectSubmission = (index) => {
         activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    // Render Preview
     renderPreview(sub);
 };
 
@@ -202,7 +199,7 @@ const renderPreview = (sub) => {
                 </div>
             </div>
             <div class="text-right">
-                <p class="text-xs text-gray-400 uppercase font-bold">Challenge Reward</p>
+                <p class="text-xs text-gray-400 uppercase font-bold">Reward</p>
                 <p class="text-xl font-black text-brand-600">${challengePoints} pts</p>
             </div>
         </div>
@@ -243,43 +240,38 @@ const renderPreviewEmpty = () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- ACTION LOGIC (Auto-Advance) ---
 window.processSubmission = async (id, status) => {
     const sub = pendingSubmissions.find(s => s.id === id);
     if (!sub) return;
 
-    // UI Feedback (Optimistic)
     const btnContainer = document.querySelector('#submission-preview .flex.gap-3');
     btnContainer.innerHTML = `<div class="w-full text-center py-3 font-bold ${status === 'approved' ? 'text-green-600' : 'text-red-500'}">Processing...</div>`;
 
-    // 1. Update Database
     const { error } = await supabase
         .from('challenge_submissions')
         .update({ 
             status: status,
-            points_awarded: status === 'approved' ? sub.challenges?.points : 0 
+            points_awarded: status === 'approved' ? (sub.challenges?.points || 0) : 0 
         })
         .eq('id', id);
 
     if (error) {
         alert("Error: " + error.message);
-        renderPreview(sub); // Revert
+        renderPreview(sub);
         return;
     }
 
-    // 2. Remove from local queue
     pendingSubmissions = pendingSubmissions.filter(s => s.id !== id);
     updateQueueCount();
     renderSubmissionList();
 
-    // 3. Auto-Select NEXT item (same index, or last if at end)
     if (pendingSubmissions.length > 0) {
         if (currentSubmissionIndex >= pendingSubmissions.length) {
             currentSubmissionIndex = pendingSubmissions.length - 1;
         }
         selectSubmission(currentSubmissionIndex);
     } else {
-        renderSubmissionList(); // Show empty state
+        renderSubmissionList();
     }
 };
 
@@ -291,12 +283,16 @@ window.processSubmission = async (id, status) => {
 const fetchActiveChallenges = async () => {
     const grid = document.getElementById('challenges-grid');
     
+    // Simple fetch to verify challenges table
     const { data: challenges, error } = await supabase
         .from('challenges')
         .select('*')
         .order('created_at', { ascending: false });
 
-    if (error) return;
+    if (error) {
+        console.error("Challenge Load Error:", error);
+        return;
+    }
 
     if (!challenges.length) {
         grid.innerHTML = `<div class="col-span-full text-center text-gray-400 italic py-8">No challenges created yet.</div>`;
@@ -366,7 +362,6 @@ window.openCreateChallengeModal = () => {
         if (!error) {
             closeModal();
             fetchActiveChallenges();
-            // Switch to manage tab to see new item
             switchTab('manage');
         } else {
             alert("Error: " + error.message);
