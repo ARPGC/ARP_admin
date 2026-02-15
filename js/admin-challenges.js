@@ -106,6 +106,7 @@ window.switchTab = (tab) => {
 const fetchPendingSubmissions = async () => {
     const listEl = document.getElementById('submission-list');
     
+    // Explicit JOIN to avoid errors
     const { data, error } = await supabase
         .from('challenge_submissions')
         .select(`
@@ -238,7 +239,7 @@ const renderPreviewEmpty = () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- ACTION LOGIC (SECURE & FIXED) ---
+// --- ACTION LOGIC (UPDATED: Minimal payload to let DB Trigger run) ---
 window.processSubmission = async (id, status) => {
     const sub = pendingSubmissions.find(s => s.id === id);
     if (!sub) return;
@@ -264,14 +265,13 @@ window.processSubmission = async (id, status) => {
             throw new Error("Could not verify admin privileges.");
         }
 
-        // 2. Update Database (With Admin ID and Points)
+        // 2. Update Database (MINIMAL UPDATE)
+        // We only send status and admin_id. We rely on your DB triggers to calculate points and timestamps.
         const { error } = await supabase
             .from('challenge_submissions')
             .update({ 
                 status: status,
-                points_awarded: status === 'approved' ? (sub.challenges?.points_reward || 0) : 0,
-                admin_id: adminUser.id, // Capture who approved it
-                updated_at: new Date().toISOString()
+                admin_id: adminUser.id
             })
             .eq('id', id);
 
