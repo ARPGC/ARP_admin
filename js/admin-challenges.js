@@ -17,7 +17,7 @@ export const renderChallenges = async (container) => {
                      <button onclick="loadView('challenges')" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-200 text-sm">
                         <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i> Refresh
                     </button>
-                    <button onclick="openCreateChallengeModal()" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-700 text-sm flex items-center gap-2 shadow-sm">
+                    <button onclick="openChallengeModal()" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-700 text-sm flex items-center gap-2 shadow-sm">
                         <i data-lucide="plus" class="w-4 h-4"></i> Create Challenge
                     </button>
                 </div>
@@ -57,7 +57,7 @@ export const renderChallenges = async (container) => {
             </div>
 
             <div id="view-manage" class="hidden flex-grow overflow-y-auto">
-                <div id="challenges-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+                <div id="challenges-list" class="space-y-4 pb-8">
                     </div>
             </div>
         </div>
@@ -100,13 +100,13 @@ window.switchTab = (tab) => {
 };
 
 // ==========================================
-// 1. REVIEW QUEUE LOGIC
+// 1. REVIEW QUEUE LOGIC (Preserved)
 // ==========================================
 
 const fetchPendingSubmissions = async () => {
     const listEl = document.getElementById('submission-list');
     
-    // FIX: Changed 'points' to 'points_reward' to match database schema
+    // Explicit JOIN to avoid errors
     const { data, error } = await supabase
         .from('challenge_submissions')
         .select(`
@@ -156,7 +156,7 @@ const renderSubmissionList = () => {
                 <span class="font-bold text-gray-800 text-sm truncate w-3/4">${sub.users?.full_name || 'Unknown'}</span>
                 <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded">${sub.users?.student_id || '-'}</span>
             </div>
-            <p class="text-xs text-brand-600 font-medium mb-1 truncate">${sub.challenges?.title || 'Untitled Challenge'}</p>
+            <p class="text-xs text-brand-600 font-medium mb-1 truncate">${sub.challenges?.title || 'Untitled'}</p>
             <p class="text-[10px] text-gray-400">${new Date(sub.created_at).toLocaleDateString()}</p>
         </div>
     `).join('');
@@ -184,7 +184,6 @@ const renderPreview = (sub) => {
     const previewEl = document.getElementById('submission-preview');
     if (!sub) return renderPreviewEmpty();
 
-    // FIX: Use points_reward
     const challengePoints = sub.challenges?.points_reward || 0;
 
     previewEl.innerHTML = `
@@ -247,7 +246,7 @@ window.processSubmission = async (id, status) => {
     const btnContainer = document.querySelector('#submission-preview .flex.gap-3');
     btnContainer.innerHTML = `<div class="w-full text-center py-3 font-bold ${status === 'approved' ? 'text-green-600' : 'text-red-500'}">Processing...</div>`;
 
-    // FIX: Use points_reward for awarding
+    // Award Points
     const { error } = await supabase
         .from('challenge_submissions')
         .update({ 
@@ -262,6 +261,7 @@ window.processSubmission = async (id, status) => {
         return;
     }
 
+    // Advance Queue
     pendingSubmissions = pendingSubmissions.filter(s => s.id !== id);
     updateQueueCount();
     renderSubmissionList();
@@ -278,40 +278,51 @@ window.processSubmission = async (id, status) => {
 
 
 // ==========================================
-// 2. MANAGE CHALLENGES (CRUD)
+// 2. MANAGE CHALLENGES (Updated UI & Edit)
 // ==========================================
 
 const fetchActiveChallenges = async () => {
-    const grid = document.getElementById('challenges-grid');
+    const listContainer = document.getElementById('challenges-list');
     
-    // FIX: select * is fine, but we need to display points_reward in template
     const { data: challenges, error } = await supabase
         .from('challenges')
         .select('*')
         .order('created_at', { ascending: false });
 
-    if (error) {
-        console.error("Challenge Load Error:", error);
-        return;
-    }
+    if (error) return;
 
     if (!challenges.length) {
-        grid.innerHTML = `<div class="col-span-full text-center text-gray-400 italic py-8">No challenges created yet.</div>`;
+        listContainer.innerHTML = `<div class="text-center text-gray-400 italic py-8">No challenges created yet.</div>`;
         return;
     }
 
-    grid.innerHTML = challenges.map(c => `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-            <img src="${c.image_url || 'https://placehold.co/600x400'}" class="h-32 w-full object-cover">
-            <div class="p-4 flex-grow">
-                <div class="flex justify-between items-start mb-2">
-                    <h4 class="font-bold text-gray-900">${c.title}</h4>
-                    <span class="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded-full">${c.points_reward} pts</span>
+    listContainer.innerHTML = challenges.map(c => `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-md transition">
+            <div class="flex-grow">
+                <div class="flex items-center gap-3 mb-1">
+                    <h4 class="font-bold text-gray-900 text-lg">${c.title}</h4>
+                    <span class="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-0.5 rounded-full">${c.points_reward} pts</span>
+                    ${c.is_active 
+                        ? '<span class="bg-green-100 text-green-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded">Active</span>'
+                        : '<span class="bg-gray-100 text-gray-500 text-[10px] font-bold uppercase px-2 py-0.5 rounded">Inactive</span>'
+                    }
                 </div>
-                <p class="text-xs text-gray-500 line-clamp-2">${c.description}</p>
+                <p class="text-sm text-gray-600 line-clamp-1">${c.description || 'No description'}</p>
             </div>
-            <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-                 <button onclick="deleteChallenge('${c.id}')" class="text-red-500 hover:text-red-700 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            
+            <div class="flex items-center gap-3 self-end md:self-auto">
+                <button onclick="toggleChallengeStatus('${c.id}', ${c.is_active})" 
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition ${c.is_active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}">
+                    ${c.is_active ? 'Disable' : 'Enable'}
+                </button>
+                
+                <button onclick="openChallengeModal('${c.id}')" class="bg-gray-100 text-gray-700 p-2 rounded-lg hover:bg-gray-200 transition" title="Edit">
+                    <i data-lucide="edit-2" class="w-4 h-4"></i>
+                </button>
+                
+                <button onclick="deleteChallenge('${c.id}')" class="text-red-400 hover:text-red-600 p-2 transition" title="Delete">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
             </div>
         </div>
     `).join('');
@@ -319,28 +330,50 @@ const fetchActiveChallenges = async () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-window.openCreateChallengeModal = () => {
+window.toggleChallengeStatus = async (id, currentStatus) => {
+    const { error } = await supabase
+        .from('challenges')
+        .update({ is_active: !currentStatus })
+        .eq('id', id);
+
+    if (error) alert("Error updating status: " + error.message);
+    else fetchActiveChallenges();
+};
+
+window.openChallengeModal = async (id = null) => {
+    // 1. Setup Data for Edit vs Create
+    let challengeData = { title: '', points_reward: 20, description: '', image_url: '' };
+    
+    if (id) {
+        const { data, error } = await supabase.from('challenges').select('*').eq('id', id).single();
+        if (error) return alert("Error fetching challenge details");
+        challengeData = data;
+    }
+
     const html = `
         <div class="p-6">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Create Challenge</h3>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">${id ? 'Edit' : 'Create'} Challenge</h3>
             <form id="challenge-form" class="space-y-4">
+                <input type="hidden" id="ch-id" value="${id || ''}">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Title</label>
-                    <input type="text" id="ch-title" class="w-full p-3 border rounded-lg" required>
+                    <input type="text" id="ch-title" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value="${challengeData.title}" required>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Points Reward</label>
-                    <input type="number" id="ch-points" class="w-full p-3 border rounded-lg" value="20">
+                    <input type="number" id="ch-points" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value="${challengeData.points_reward}">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Description</label>
-                    <textarea id="ch-desc" rows="3" class="w-full p-3 border rounded-lg"></textarea>
+                    <textarea id="ch-desc" rows="3" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">${challengeData.description || ''}</textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Banner Image URL</label>
-                    <input type="url" id="ch-img" class="w-full p-3 border rounded-lg" placeholder="https://...">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Banner Image URL (Optional)</label>
+                    <input type="url" id="ch-img" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="https://..." value="${challengeData.image_url || ''}">
                 </div>
-                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700">Create</button>
+                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 shadow-md">
+                    ${id ? 'Update Challenge' : 'Create Challenge'}
+                </button>
             </form>
         </div>
     `;
@@ -351,20 +384,32 @@ window.openCreateChallengeModal = () => {
         const btn = e.target.querySelector('button');
         btn.disabled = true; btn.innerText = "Saving...";
 
-        // FIX: Insert into 'points_reward' column
+        const cid = document.getElementById('ch-id').value;
         const payload = {
             title: document.getElementById('ch-title').value,
             points_reward: parseInt(document.getElementById('ch-points').value),
             description: document.getElementById('ch-desc').value,
-            image_url: document.getElementById('ch-img').value,
-            created_by: (await supabase.auth.getUser()).data.user.id
+            image_url: document.getElementById('ch-img').value
         };
 
-        const { error } = await supabase.from('challenges').insert(payload);
+        let error;
+        if (cid) {
+            // Update
+            const { error: err } = await supabase.from('challenges').update(payload).eq('id', cid);
+            error = err;
+        } else {
+            // Insert
+            payload.created_by = (await supabase.auth.getUser()).data.user.id;
+            payload.is_active = true;
+            const { error: err } = await supabase.from('challenges').insert(payload);
+            error = err;
+        }
+
         if (!error) {
             closeModal();
             fetchActiveChallenges();
-            switchTab('manage');
+            // If creating new, switch tab to see it
+            if(!cid) switchTab('manage');
         } else {
             alert("Error: " + error.message);
             btn.disabled = false;
@@ -373,7 +418,8 @@ window.openCreateChallengeModal = () => {
 };
 
 window.deleteChallenge = async (id) => {
-    if(!confirm("Delete this challenge?")) return;
-    await supabase.from('challenges').delete().eq('id', id);
-    fetchActiveChallenges();
+    if(!confirm("Delete this challenge? This cannot be undone.")) return;
+    const { error } = await supabase.from('challenges').delete().eq('id', id);
+    if (error) alert("Error deleting: " + error.message);
+    else fetchActiveChallenges();
 };
