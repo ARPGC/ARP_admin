@@ -106,13 +106,12 @@ window.switchTab = (tab) => {
 const fetchPendingSubmissions = async () => {
     const listEl = document.getElementById('submission-list');
     
-    // FIX: Removed '!challenge_id' from challenges to fix 400 Bad Request
-    // Kept '!user_id' because user relationship is ambiguous (created_by, admin_id, etc.)
+    // FIX: Changed 'points' to 'points_reward' to match database schema
     const { data, error } = await supabase
         .from('challenge_submissions')
         .select(`
             id, submission_url, status, created_at, points_awarded,
-            challenges ( title, points ),
+            challenges ( title, points_reward ),
             users!user_id ( full_name, student_id, course )
         `)
         .eq('status', 'pending')
@@ -185,7 +184,8 @@ const renderPreview = (sub) => {
     const previewEl = document.getElementById('submission-preview');
     if (!sub) return renderPreviewEmpty();
 
-    const challengePoints = sub.challenges?.points || 0;
+    // FIX: Use points_reward
+    const challengePoints = sub.challenges?.points_reward || 0;
 
     previewEl.innerHTML = `
         <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
@@ -247,11 +247,12 @@ window.processSubmission = async (id, status) => {
     const btnContainer = document.querySelector('#submission-preview .flex.gap-3');
     btnContainer.innerHTML = `<div class="w-full text-center py-3 font-bold ${status === 'approved' ? 'text-green-600' : 'text-red-500'}">Processing...</div>`;
 
+    // FIX: Use points_reward for awarding
     const { error } = await supabase
         .from('challenge_submissions')
         .update({ 
             status: status,
-            points_awarded: status === 'approved' ? (sub.challenges?.points || 0) : 0 
+            points_awarded: status === 'approved' ? (sub.challenges?.points_reward || 0) : 0 
         })
         .eq('id', id);
 
@@ -283,7 +284,7 @@ window.processSubmission = async (id, status) => {
 const fetchActiveChallenges = async () => {
     const grid = document.getElementById('challenges-grid');
     
-    // Simple fetch to verify challenges table
+    // FIX: select * is fine, but we need to display points_reward in template
     const { data: challenges, error } = await supabase
         .from('challenges')
         .select('*')
@@ -305,7 +306,7 @@ const fetchActiveChallenges = async () => {
             <div class="p-4 flex-grow">
                 <div class="flex justify-between items-start mb-2">
                     <h4 class="font-bold text-gray-900">${c.title}</h4>
-                    <span class="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded-full">${c.points} pts</span>
+                    <span class="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded-full">${c.points_reward} pts</span>
                 </div>
                 <p class="text-xs text-gray-500 line-clamp-2">${c.description}</p>
             </div>
@@ -350,9 +351,10 @@ window.openCreateChallengeModal = () => {
         const btn = e.target.querySelector('button');
         btn.disabled = true; btn.innerText = "Saving...";
 
+        // FIX: Insert into 'points_reward' column
         const payload = {
             title: document.getElementById('ch-title').value,
-            points: parseInt(document.getElementById('ch-points').value),
+            points_reward: parseInt(document.getElementById('ch-points').value),
             description: document.getElementById('ch-desc').value,
             image_url: document.getElementById('ch-img').value,
             created_by: (await supabase.auth.getUser()).data.user.id
