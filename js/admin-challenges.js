@@ -14,20 +14,20 @@ export const renderChallenges = async (container) => {
                     <p class="text-xs text-gray-500">Manage challenges and review student proof</p>
                 </div>
                 <div class="flex gap-2">
-                     <button onclick="loadView('challenges')" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-200 text-sm">
+                     <button onclick="loadView('challenges')" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-200 text-sm shadow-sm transition">
                         <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i> Refresh
                     </button>
-                    <button onclick="openChallengeModal()" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-700 text-sm flex items-center gap-2 shadow-sm">
+                    <button onclick="openChallengeModal()" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-brand-700 text-sm flex items-center gap-2 shadow-sm transition">
                         <i data-lucide="plus" class="w-4 h-4"></i> Create Challenge
                     </button>
                 </div>
             </div>
 
             <div class="flex gap-6 border-b border-gray-200 mb-4 shrink-0 px-2">
-                <button id="tab-review" onclick="switchTab('review')" class="pb-2 text-sm font-bold text-brand-600 border-b-2 border-brand-600">
+                <button id="tab-review" onclick="switchTab('review')" class="pb-2 text-sm font-bold text-brand-600 border-b-2 border-brand-600 transition-colors">
                     Review Submissions
                 </button>
-                <button id="tab-manage" onclick="switchTab('manage')" class="pb-2 text-sm font-bold text-gray-500 hover:text-gray-700">
+                <button id="tab-manage" onclick="switchTab('manage')" class="pb-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
                     Active Challenges
                 </button>
             </div>
@@ -238,7 +238,7 @@ const renderPreviewEmpty = () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
-// --- ACTION LOGIC (UPDATED WITH ADMIN ID) ---
+// --- ACTION LOGIC (SECURE & FIXED) ---
 window.processSubmission = async (id, status) => {
     const sub = pendingSubmissions.find(s => s.id === id);
     if (!sub) return;
@@ -247,9 +247,22 @@ window.processSubmission = async (id, status) => {
     btnContainer.innerHTML = `<div class="w-full text-center py-3 font-bold ${status === 'approved' ? 'text-green-600' : 'text-red-500'}">Processing...</div>`;
 
     try {
-        // 1. Get Current Admin ID
-        const { data: { user } } = await supabase.auth.getUser();
-        const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
+        // 1. Get Current Admin ID (with Session Check)
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            throw new Error("Session expired. Please refresh the page and log in again.");
+        }
+
+        const { data: adminUser, error: adminError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', user.id)
+            .single();
+
+        if (adminError || !adminUser) {
+            throw new Error("Could not verify admin privileges.");
+        }
 
         // 2. Update Database (With Admin ID and Points)
         const { error } = await supabase
@@ -257,7 +270,7 @@ window.processSubmission = async (id, status) => {
             .update({ 
                 status: status,
                 points_awarded: status === 'approved' ? (sub.challenges?.points_reward || 0) : 0,
-                admin_id: adminUser?.id || null, // Capture who approved it
+                admin_id: adminUser.id, // Capture who approved it
                 updated_at: new Date().toISOString()
             })
             .eq('id', id);
@@ -275,12 +288,12 @@ window.processSubmission = async (id, status) => {
             }
             selectSubmission(currentSubmissionIndex);
         } else {
-            renderSubmissionList();
+            renderSubmissionList(); // Show empty state
         }
 
     } catch (error) {
         alert("Error: " + error.message);
-        renderPreview(sub); // Revert UI
+        renderPreview(sub); // Revert UI so they can try again
     }
 };
 
@@ -360,11 +373,12 @@ window.openChallengeModal = async (id = null) => {
 
     const html = `
         <div class="p-6 relative">
-            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-gray-100 transition">
                 <i data-lucide="x" class="w-6 h-6"></i>
             </button>
             
-            <h3 class="text-xl font-bold text-gray-800 mb-4">${id ? 'Edit' : 'Create'} Challenge</h3>
+            <h3 class="text-xl font-bold text-gray-800 mb-6">${id ? 'Edit' : 'Create'} Challenge</h3>
+            
             <form id="challenge-form" class="space-y-4">
                 <input type="hidden" id="ch-id" value="${id || ''}">
                 <div>
@@ -383,9 +397,15 @@ window.openChallengeModal = async (id = null) => {
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Banner Image URL (Optional)</label>
                     <input type="url" id="ch-img" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="https://..." value="${challengeData.image_url || ''}">
                 </div>
-                <button type="submit" class="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 shadow-md">
-                    ${id ? 'Update Challenge' : 'Create Challenge'}
-                </button>
+                
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeModal()" class="flex-1 bg-white border border-gray-300 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-50 transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 shadow-md transition">
+                        ${id ? 'Update' : 'Create'}
+                    </button>
+                </div>
             </form>
         </div>
     `;
@@ -394,7 +414,7 @@ window.openChallengeModal = async (id = null) => {
 
     document.getElementById('challenge-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = e.target.querySelector('button');
+        const btn = e.target.querySelector('button[type="submit"]');
         btn.disabled = true; btn.innerText = "Saving...";
 
         const cid = document.getElementById('ch-id').value;
@@ -425,6 +445,7 @@ window.openChallengeModal = async (id = null) => {
         } else {
             alert("Error: " + error.message);
             btn.disabled = false;
+            btn.innerText = cid ? 'Update' : 'Create';
         }
     });
 };
