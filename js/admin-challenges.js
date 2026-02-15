@@ -100,13 +100,12 @@ window.switchTab = (tab) => {
 };
 
 // ==========================================
-// 1. REVIEW QUEUE LOGIC (Preserved)
+// 1. REVIEW QUEUE LOGIC
 // ==========================================
 
 const fetchPendingSubmissions = async () => {
     const listEl = document.getElementById('submission-list');
     
-    // Explicit JOIN to avoid errors
     const { data, error } = await supabase
         .from('challenge_submissions')
         .select(`
@@ -239,6 +238,7 @@ const renderPreviewEmpty = () => {
     if(window.lucide) window.lucide.createIcons();
 };
 
+// --- ACTION LOGIC (UPDATED WITH ADMIN ID) ---
 window.processSubmission = async (id, status) => {
     const sub = pendingSubmissions.find(s => s.id === id);
     if (!sub) return;
@@ -246,39 +246,47 @@ window.processSubmission = async (id, status) => {
     const btnContainer = document.querySelector('#submission-preview .flex.gap-3');
     btnContainer.innerHTML = `<div class="w-full text-center py-3 font-bold ${status === 'approved' ? 'text-green-600' : 'text-red-500'}">Processing...</div>`;
 
-    // Award Points
-    const { error } = await supabase
-        .from('challenge_submissions')
-        .update({ 
-            status: status,
-            points_awarded: status === 'approved' ? (sub.challenges?.points_reward || 0) : 0 
-        })
-        .eq('id', id);
+    try {
+        // 1. Get Current Admin ID
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: adminUser } = await supabase.from('users').select('id').eq('auth_user_id', user.id).single();
 
-    if (error) {
-        alert("Error: " + error.message);
-        renderPreview(sub);
-        return;
-    }
+        // 2. Update Database (With Admin ID and Points)
+        const { error } = await supabase
+            .from('challenge_submissions')
+            .update({ 
+                status: status,
+                points_awarded: status === 'approved' ? (sub.challenges?.points_reward || 0) : 0,
+                admin_id: adminUser?.id || null, // Capture who approved it
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
 
-    // Advance Queue
-    pendingSubmissions = pendingSubmissions.filter(s => s.id !== id);
-    updateQueueCount();
-    renderSubmissionList();
+        if (error) throw error;
 
-    if (pendingSubmissions.length > 0) {
-        if (currentSubmissionIndex >= pendingSubmissions.length) {
-            currentSubmissionIndex = pendingSubmissions.length - 1;
-        }
-        selectSubmission(currentSubmissionIndex);
-    } else {
+        // 3. Advance Queue
+        pendingSubmissions = pendingSubmissions.filter(s => s.id !== id);
+        updateQueueCount();
         renderSubmissionList();
+
+        if (pendingSubmissions.length > 0) {
+            if (currentSubmissionIndex >= pendingSubmissions.length) {
+                currentSubmissionIndex = pendingSubmissions.length - 1;
+            }
+            selectSubmission(currentSubmissionIndex);
+        } else {
+            renderSubmissionList();
+        }
+
+    } catch (error) {
+        alert("Error: " + error.message);
+        renderPreview(sub); // Revert UI
     }
 };
 
 
 // ==========================================
-// 2. MANAGE CHALLENGES (Updated UI & Edit)
+// 2. MANAGE CHALLENGES (CRUD)
 // ==========================================
 
 const fetchActiveChallenges = async () => {
@@ -340,8 +348,8 @@ window.toggleChallengeStatus = async (id, currentStatus) => {
     else fetchActiveChallenges();
 };
 
+// --- MODAL WITH CLOSE BUTTON ---
 window.openChallengeModal = async (id = null) => {
-    // 1. Setup Data for Edit vs Create
     let challengeData = { title: '', points_reward: 20, description: '', image_url: '' };
     
     if (id) {
@@ -351,7 +359,11 @@ window.openChallengeModal = async (id = null) => {
     }
 
     const html = `
-        <div class="p-6">
+        <div class="p-6 relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            
             <h3 class="text-xl font-bold text-gray-800 mb-4">${id ? 'Edit' : 'Create'} Challenge</h3>
             <form id="challenge-form" class="space-y-4">
                 <input type="hidden" id="ch-id" value="${id || ''}">
@@ -378,6 +390,7 @@ window.openChallengeModal = async (id = null) => {
         </div>
     `;
     window.openModal(html);
+    if(window.lucide) window.lucide.createIcons();
 
     document.getElementById('challenge-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -408,7 +421,6 @@ window.openChallengeModal = async (id = null) => {
         if (!error) {
             closeModal();
             fetchActiveChallenges();
-            // If creating new, switch tab to see it
             if(!cid) switchTab('manage');
         } else {
             alert("Error: " + error.message);
